@@ -44,7 +44,7 @@ if (toggle && navLinks) {
   });
 }
 
-const sectionIds = ['top', 'expertise', 'services', 'proof', 'approach', 'about', 'contact'];
+const sectionIds = ['top', 'expertise', 'services', 'proof', 'approach', 'contact'];
 const navSectionLinks = document.querySelectorAll('[data-nav-section]');
 
 function setActiveNav(sectionId) {
