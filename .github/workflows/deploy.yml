@@ -28,3 +28,4 @@ jobs:
             **/.DS_Store
             **/__pycache__/**
             **/*.zip
+            **/CNAME
