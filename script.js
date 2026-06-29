@@ -44,7 +44,7 @@ if (toggle && navLinks) {
   });
 }
 
-const sectionIds = ['top', 'expertise', 'services', 'proof', 'approach', 'about', 'contact'];
+const sectionIds = ['top', 'expertise', 'services', 'proof', 'approach', 'contact'];
 const navSectionLinks = document.querySelectorAll('[data-nav-section]');
 
 function setActiveNav(sectionId) {
@@ -183,8 +183,8 @@ if (contactForm) {
 
   function thankYouPath() {
     const mainScript = document.querySelector('script[src*="script.js"]');
-    if (mainScript?.src) return new URL('thank-you.html', mainScript.src).pathname;
-    return '/thank-you.html';
+    if (mainScript?.src) return new URL('contact.php', mainScript.src).pathname;
+    return 'contact.php';
   }
 
   let widget = document.querySelector('[data-chat-widget]');
@@ -205,7 +205,7 @@ if (contactForm) {
           </header>
           <div class="chat-messages" data-chat-messages role="log" aria-live="polite" aria-relevant="additions"></div>
           <div class="chat-quick-replies" data-chat-quick-replies aria-label="Suggested questions"></div>
-          <form class="chat-contact-form" data-chat-contact-form name="chat-enquiry" method="POST" data-netlify="true" netlify-honeypot="chat-bot-field" action="${thankYouPath()}" hidden>
+          <form class="chat-contact-form" data-chat-contact-form name="chat-enquiry" method="POST" action="${thankYouPath()}" hidden>
             <input type="hidden" name="form-name" value="chat-enquiry" />
             <p class="hidden" aria-hidden="true"><label>Don't fill this out: <input name="chat-bot-field" tabindex="-1" autocomplete="off" /></label></p>
             <p class="chat-contact-label">Send an enquiry</p>
@@ -394,10 +394,12 @@ if (contactForm) {
 
   const { hostname, protocol } = window.location;
   const isLocal = protocol === 'file:' || hostname === 'localhost' || hostname === '127.0.0.1';
-  const usesNetlify = contactForm.hasAttribute('data-netlify') && !isLocal;
 
   contactForm.addEventListener('submit', (e) => {
-    if (usesNetlify) { trackEvent('chat-form-submit'); return; }
+    if (!isLocal) {
+      trackEvent('chat-form-submit');
+      return;
+    }
     e.preventDefault();
     const data = new FormData(contactForm);
     const name = String(data.get('name') || '').trim();
