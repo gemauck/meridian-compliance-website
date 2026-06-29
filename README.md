@@ -1,37 +1,51 @@
 # Meridian Compliance & Advisory Website
 
-A premium static website for Meridian Compliance & Advisory, focused on tax, SARS, diesel refund, customs/excise, compliance, operational controls, data and AI advisory work.
+Static website for Meridian Compliance & Advisory — tax, SARS, diesel refund, customs/excise, and operational compliance advisory.
+
+## Hosting: domains.co.za
+
+Live site: **https://meridianconsulting.co.za** (domains.co.za shared hosting, `public_html`).
+
+### Deploy via GitHub Actions
+
+Pushing to `main` deploys automatically via FTP (`.github/workflows/deploy.yml`).
+
+**Automatic:** merge or push to `main` — the workflow uploads all site files to `public_html/`.
+
+**Manual:** GitHub repo → Actions → **Deploy to domains.co.za** → **Run workflow**.
+
+Required repository secrets: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`.
+
+No manual FTP upload needed from local machines.
+
+### Contact form
+
+Forms POST to `contact.php`, which sends email to `info@meridianconsulting.co.za` via PHP `mail()`.
+
+If emails don't arrive:
+- Confirm `noreply@meridianconsulting.co.za` exists on your hosting (or change the `From` address in `contact.php` to a mailbox on your domain)
+- Check domains.co.za spam filters and hosting mail logs
+- Contact domains.co.za support to confirm PHP `mail()` is enabled
+
+### SEO after upload
+
+1. **Google Search Console** — verify `meridianconsulting.co.za`, submit `https://meridianconsulting.co.za/sitemap.xml`
+2. **Google Business Profile** — for local/branded search
+3. **Analytics** — set `ANALYTICS_DOMAIN` in `script.js` to `'meridianconsulting.co.za'`
+4. **Principal bio** — update the About section with name, photo and credentials
 
 ## Files
 
-- `index.html` — main one-page site
-- `diesel-refund-compliance.html` — SEO landing page (expanded with FAQs)
-- `sars-dispute-support.html` — SEO landing page (expanded with FAQs)
-- `customs-excise-advisory.html` — SEO landing page (expanded with FAQs)
-- `insights/` — articles for long-tail SEO
-- `sitemap.xml` — submit to Google Search Console
-- `robots.txt` — crawler directives
-- `netlify.toml` — deploy config
-- `thank-you.html` — Netlify form success page
-- `styles.css` — responsive visual design
-- `script.js` — navigation, scroll state, animations, analytics hook
-- `favicon.svg` / `og-image.svg` — branding assets
+- `index.html` — main site
+- `contact.php` — form handler for domains.co.za hosting
+- `.htaccess` — redirects and security headers
+- `diesel-refund-compliance.html`, `sars-dispute-support.html`, `customs-excise-advisory.html` — SEO landing pages
+- `insights/` — articles
+- `sitemap.xml`, `robots.txt` — search engines
 
-## SEO checklist (do after deploy)
+## GitHub mirror (optional)
 
-1. **Google Search Console** — verify domain, submit `https://meridianconsulting.co.za/sitemap.xml`
-2. **Google Business Profile** — if you serve clients in specific regions
-3. **Domain & canonical URLs** — update if live domain differs from `meridianconsulting.co.za`
-4. **OG image PNG** — export `og-image.svg` to 1200×630 PNG for LinkedIn/WhatsApp
-5. **Principal bio** — replace placeholder in About section with name, photo and credentials
-6. **Analytics** — set `ANALYTICS_DOMAIN` in `script.js` (e.g. `'meridianconsulting.co.za'`)
-7. **LinkedIn** — company page linking to site; post insights articles monthly
-8. **Backlinks** — guest posts, professional directories, referrer relationships
+A copy is also on GitHub Pages for preview only:  
+https://github.com/gemauck/meridian-compliance-website
 
-## Contact form
-
-Uses [Netlify Forms](https://docs.netlify.com/forms/setup/). On localhost, form submits via `mailto:` fallback. Success redirect: `/thank-you.html`.
-
-## Publishing
-
-Upload to Netlify (recommended for forms), Vercel, Cloudflare Pages, or any static host.
+Your live site should be **meridianconsulting.co.za** on domains.co.za.
