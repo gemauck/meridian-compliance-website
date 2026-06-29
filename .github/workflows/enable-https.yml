@@ -1,0 +1,34 @@
+name: Enable HTTPS when certificate is ready
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  enable-https:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable HTTPS enforcement once certificate exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh api repos/${{ github.repository }}/pages --jq '.https_certificate.state // empty')
+          enforced=$(gh api repos/${{ github.repository }}/pages --jq '.https_enforced')
+          echo "Certificate state: ${state:-unknown}"
+          echo "HTTPS enforced: ${enforced}"
+          if [ "${enforced}" = "true" ]; then
+            echo "HTTPS already enforced."
+            exit 0
+          fi
+          if [ "${state}" = "approved" ] || [ "${state}" = "issued" ]; then
+            gh api repos/${{ github.repository }}/pages -X PUT -F https_enforced=true
+            echo "HTTPS enforcement enabled."
+            exit 0
+          fi
+          if gh api repos/${{ github.repository }}/pages -X PUT -F https_enforced=true 2>/tmp/https-error.log; then
+            echo "HTTPS enforcement enabled."
+          else
+            cat /tmp/https-error.log
+            echo "Certificate not ready yet."
+          fi
