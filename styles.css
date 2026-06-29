@@ -385,8 +385,13 @@ h3 { font-size: 1.35rem; margin: 14px 0 10px; line-height: 1.2; }
   position: fixed;
   right: 24px;
   bottom: 24px;
-  z-index: 9999;
+  z-index: 2147483646;
   font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.chat-widget > * {
+  pointer-events: auto;
 }
 
 body.has-mobile-cta .chat-widget { bottom: 96px; }
