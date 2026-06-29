@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Meridian Compliance and Advisory">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06101e"/>
+      <stop offset="55%" stop-color="#10213a"/>
+      <stop offset="100%" stop-color="#07111f"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d7b56d"/>
+      <stop offset="100%" stop-color="#f0d99b"/>
+    </linearGradient>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+  <circle cx="980" cy="120" r="180" fill="#d7b56d" opacity="0.18"/>
+  <circle cx="120" cy="520" r="140" fill="#78a6ff" opacity="0.14"/>
+  <circle cx="120" cy="120" r="46" fill="url(#gold)"/>
+  <text x="120" y="136" text-anchor="middle" font-family="Georgia, serif" font-size="34" font-weight="700" fill="#07111f">M</text>
+  <text x="190" y="108" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700" fill="#ffffff">Meridian</text>
+  <text x="190" y="142" font-family="Inter, Arial, sans-serif" font-size="18" fill="rgba(255,255,255,0.72)">Compliance &amp; Advisory</text>
+  <text x="120" y="260" font-family="Fraunces, Georgia, serif" font-size="64" font-weight="600" fill="#ffffff">Complex compliance matters.</text>
+  <text x="120" y="340" font-family="Fraunces, Georgia, serif" font-size="64" font-weight="600" fill="#f0d99b">Clear, defensible strategy.</text>
+  <text x="120" y="420" font-family="Inter, Arial, sans-serif" font-size="26" fill="rgba(255,255,255,0.78)">Tax, SARS, diesel refund, customs/excise and operational controls  South Africa.</text>
+</svg>
