@@ -44,7 +44,7 @@ if (toggle && navLinks) {
   });
 }
 
-const sectionIds = ['top', 'expertise', 'services', 'proof', 'approach', 'contact'];
+const sectionIds = ['top', 'expertise', 'services', 'proof', 'approach', 'about', 'contact'];
 const navSectionLinks = document.querySelectorAll('[data-nav-section]');
 
 function setActiveNav(sectionId) {
@@ -182,9 +182,7 @@ if (contactForm) {
   }
 
   function thankYouPath() {
-    const mainScript = document.querySelector('script[src*="script.js"]');
-    if (mainScript?.src) return new URL('contact.php', mainScript.src).pathname;
-    return 'contact.php';
+    return '/contact.php';
   }
 
   let widget = document.querySelector('[data-chat-widget]');
@@ -192,12 +190,12 @@ if (contactForm) {
     if (widget) widget.remove();
     const wrapper = document.createElement('div');
     wrapper.innerHTML = `
-      <div class="chat-widget" data-chat-widget style="position:fixed;right:24px;bottom:24px;z-index:2147483646">
+      <div class="chat-widget" data-chat-widget>
         <div class="chat-panel" data-chat-panel hidden>
           <header class="chat-header">
             <div class="chat-header-brand">
               <span class="chat-avatar" aria-hidden="true">M</span>
-              <div><strong>Meridian Assistant</strong><small>Ask about advisory services</small></div>
+              <div><strong>Quick enquiry</strong><small>General information about Meridian</small></div>
             </div>
             <button class="chat-close" type="button" data-chat-close aria-label="Close chat">
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -226,11 +224,10 @@ if (contactForm) {
             </button>
           </form>
         </div>
-        <button class="chat-toggle" type="button" data-chat-toggle aria-expanded="false" aria-label="Open chat" data-track="chat-open" style="position:relative;display:inline-flex;align-items:center;gap:10px;min-height:58px;padding:0 22px 0 18px;border:0;border-radius:999px;background:linear-gradient(135deg,#d7b56d,#f0d99b);color:#07111f;font-weight:800;cursor:pointer;box-shadow:0 18px 50px rgba(215,181,109,.45)">
-          <span class="chat-toggle-pulse" aria-hidden="true"></span>
+        <button class="chat-toggle" type="button" data-chat-toggle aria-expanded="false" aria-label="Open enquiry helper" data-track="chat-open">
           <svg class="chat-toggle-icon chat-toggle-icon--open" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8A2.5 2.5 0 0 1 17.5 16H9l-5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
           <svg class="chat-toggle-icon chat-toggle-icon--close" width="22" height="22" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span class="chat-toggle-label">Chat with Meridian</span>
+          <span class="chat-toggle-label">Ask a question</span>
         </button>
       </div>`;
     widget = wrapper.firstElementChild;
