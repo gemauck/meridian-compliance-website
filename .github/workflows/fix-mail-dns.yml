@@ -7,16 +7,9 @@ jobs:
   fix-dns:
     runs-on: ubuntu-latest
     steps:
-      - name: Test webmail endpoints
+      - name: Try Netlify CLI DNS access
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: |
-          for url in \
-            "https://webmail.meridianconsulting.co.za" \
-            "https://mail.meridianconsulting.co.za" \
-            "https://meridianconsulting.co.za:2096" \
-            "https://cp75.domains.co.za:2096" \
-            "https://webmail.domains.co.za"; do
-            echo "=== $url ==="
-            curl -sS -m 20 -k -o /tmp/body.html -w "HTTP %{http_code}\n" "$url" || echo "FAILED"
-            head -5 /tmp/body.html 2>/dev/null || true
-            echo
-          done
+          npx --yes netlify-cli@latest sites:list --json | jq '[.[] | {name, id, custom_domain}]'
+          npx --yes netlify-cli@latest dns:list meridianconsulting.co.za 2>&1 || true
