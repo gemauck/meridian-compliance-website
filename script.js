@@ -5,7 +5,7 @@ const mobileCta = document.querySelector('[data-mobile-cta]');
 const year = document.getElementById('year');
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const ANALYTICS_DOMAIN = ''; // e.g. 'meridianconsulting.co.za' for Plausible
+const ANALYTICS_DOMAIN = 'meridianconsulting.co.za';
 
 if (year) year.textContent = new Date().getFullYear();
 
