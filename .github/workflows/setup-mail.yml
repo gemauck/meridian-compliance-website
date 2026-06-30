@@ -1,0 +1,50 @@
+name: Setup mail account
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_password:
+        description: New mailbox password (leave blank to only list accounts)
+        required: false
+        type: string
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect hosting and mail accounts
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          NEW_PASSWORD: ${{ inputs.new_password }}
+        run: |
+          set -euo pipefail
+          echo "FTP_SERVER=$FTP_SERVER"
+          echo "FTP_USERNAME=$FTP_USERNAME"
+
+          CPANEL="https://${FTP_SERVER}:2083"
+          echo "=== cPanel version check ==="
+          curl -sS -m 20 -k -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            "${CPANEL}/execute/Email/list_pops" | jq . || true
+
+          echo "=== Try alternate cPanel user formats ==="
+          for user in "$FTP_USERNAME" "${FTP_USERNAME%%@*}"; do
+            echo "-- user: $user"
+            curl -sS -m 20 -k -u "${user}:${FTP_PASSWORD}" \
+              "${CPANEL}/execute/Email/list_pops" | jq '{status, errors, data: (.data // [] | map(.email))}' 2>/dev/null || echo "failed"
+          done
+
+          if [ -n "${NEW_PASSWORD:-}" ]; then
+            echo "=== Create or update info@meridianconsulting.co.za ==="
+            curl -sS -m 20 -k -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"info\",\"password\":\"${NEW_PASSWORD}\",\"quota\":1024,\"domain\":\"meridianconsulting.co.za\"}" \
+              "${CPANEL}/execute/Email/add_pop" | jq . || true
+          fi
+
+          echo "=== Webmail reachability ==="
+          for url in "https://webmail.domains.co.za" "https://webmail.meridianconsulting.co.za" "https://${FTP_SERVER}:2096"; do
+            code=$(curl -sS -m 15 -k -o /dev/null -w "%{http_code}" "$url" || echo "000")
+            echo "$url -> HTTP $code"
+          done
