@@ -11,7 +11,7 @@
   --shadow: 0 24px 80px rgba(7, 17, 31, 0.18);
   --radius: 28px;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: Fraunces, Georgia, "Times New Roman", serif;
+  --font-display: var(--font-sans);
   --focus-ring: 0 0 0 3px rgba(215, 181, 109, 0.55);
 }
 
@@ -25,7 +25,7 @@ body {
   line-height: 1.6;
 }
 a { color: inherit; text-decoration: none; }
-h1, h2, h3 { font-family: var(--font-display); font-weight: 600; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; }
 .container { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
 .section { padding: 110px 0; position: relative; }
 .section-dark { background: radial-gradient(circle at 20% 20%, rgba(215,181,109,.18), transparent 30%), linear-gradient(135deg, #06101e 0%, #10213a 55%, #07111f 100%); color: var(--white); overflow: hidden; }
