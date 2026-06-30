@@ -20,7 +20,7 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          INPUT_PASSWORD: ${{ inputs.new_password }}
+          INPUT_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.new_password || '' }}
           SECRET_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
         run: |
           set -euo pipefail
