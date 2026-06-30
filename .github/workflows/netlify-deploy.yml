@@ -11,31 +11,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Netlify
+      - name: Trigger Netlify production deploy
         env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        run: npx --yes netlify-cli@latest deploy --prod --dir . --site 0706de37-1a8b-44f1-9949-52c6f0dae485
-
-      - name: Set www as primary Netlify domain
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
         run: |
-          curl -sS -X PATCH "https://api.netlify.com/api/v1/sites/0706de37-1a8b-44f1-9949-52c6f0dae485" \
-            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"custom_domain":"www.meridianconsulting.co.za"}' \
-            | jq '{custom_domain, domain_aliases, ssl_url, url}'
+          set -euo pipefail
+          response=$(curl -sS -w "\n%{http_code}" -X POST "$NETLIFY_BUILD_HOOK")
+          body=$(echo "$response" | sed '$d')
+          code=$(echo "$response" | tail -n 1)
+          echo "$body"
+          case "$code" in
+            200|201|202) echo "Build hook accepted (HTTP $code)" ;;
+            *) echo "Build hook failed with HTTP $code"; exit 1 ;;
+          esac
 
-      - name: Report Netlify domain status
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      - name: Wait for deploy to go live
         run: |
-          echo "=== Netlify site ==="
-          curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            "https://api.netlify.com/api/v1/sites/0706de37-1a8b-44f1-9949-52c6f0dae485" \
-            | jq '{custom_domain, domain_aliases, ssl_url, url}' || true
+          URL="https://www.meridianconsulting.co.za/insights/sars-new-diesel-refund-platform-2026.html"
+          for i in $(seq 1 36); do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            echo "attempt $i: $code"
+            if [ "$code" = "200" ]; then
+              echo "Deploy verified."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Deploy verification timed out"
+          exit 1
 
       - name: Notify search engines of sitemap
+        if: success()
         run: |
           SITEMAP="https://www.meridianconsulting.co.za/sitemap.xml"
           ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SITEMAP', safe=''))")
@@ -46,6 +52,7 @@ jobs:
           curl -sS "https://webmaster.yandex.com/ping?sitemap=${ENCODED}" || true
 
       - name: Submit URLs to IndexNow
+        if: success()
         run: |
           curl -sS -X POST "https://api.indexnow.org/indexnow" \
             -H "Content-Type: application/json" \
@@ -59,7 +66,9 @@ jobs:
                 "https://www.meridianconsulting.co.za/diesel-refund-resources.html",
                 "https://www.meridianconsulting.co.za/sars-dispute-support.html",
                 "https://www.meridianconsulting.co.za/customs-excise-advisory.html",
+                "https://www.meridianconsulting.co.za/data-analytics-advisory.html",
                 "https://www.meridianconsulting.co.za/insights/",
+                "https://www.meridianconsulting.co.za/insights/sars-new-diesel-refund-platform-2026.html",
                 "https://www.meridianconsulting.co.za/insights/sars-objection-evidence-checklist.html",
                 "https://www.meridianconsulting.co.za/insights/diesel-refund-audit-evidence-gaps.html"
               ]
