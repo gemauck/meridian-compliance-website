@@ -19,90 +19,59 @@ jobs:
           CPANEL="https://${FTP_SERVER}:2083"
           AUTH=(-u "${FTP_USERNAME}:${FTP_PASSWORD}")
 
-          uapi() {
-            local module="$1"
-            local func="$2"
-            shift 2
+          zoneedit() {
+            local func="$1"
+            shift
             local body
             body="$(mktemp)"
             local code
             code="$(curl -sS -m 30 -k "${AUTH[@]}" \
               -H "Accept: application/json" \
-              -G "${CPANEL}/execute/${module}/${func}" \
+              -G "${CPANEL}/json-api/cpanel" \
+              --data-urlencode "cpanel_jsonapi_apiversion=2" \
+              --data-urlencode "cpanel_jsonapi_module=ZoneEdit" \
+              --data-urlencode "cpanel_jsonapi_func=${func}" \
               "$@" \
               -o "$body" -w "%{http_code}")"
-            echo "${module}.${func} HTTP ${code}"
+            echo "ZoneEdit.${func} HTTP ${code}"
             if ! jq -e . "$body" >/dev/null 2>&1; then
               echo "Non-JSON response:"
               head -c 500 "$body"
               exit 1
             fi
-            jq '{status, errors, messages, data: (.result.data // .data // null)}' "$body" | head -c 4000
-            cp "$body" /tmp/uapi_last.json
+            cp "$body" /tmp/zoneedit_last.json
           }
 
-          echo "=== Fetch zone via UAPI ==="
-          uapi DNS fetch_zone --data-urlencode "zone=${ZONE}"
+          echo "=== Fetch zone records ==="
+          zoneedit fetchzone_records --data-urlencode "domain=${ZONE}"
 
-          LINE_INDEX="$(jq -r '
-            [.result.data.zone[]?
-              | select((.record_type // .type // "") == "CNAME")
-              | select((.dname // .name // "") | test("^www(\\.meridianconsulting\\.co\\.za)?\\.?$"))
-              | (.line_index // .line // empty)
+          LINE="$(jq -r --arg zone "${ZONE}." '
+            [.cpanelresult.data[]?
+              | select(.type == "CNAME")
+              | select(.name == "www." + $zone or .name == "www." + ($zone | rtrimstr(".")) or .name == "www")
+              | (.line // .Line)
             ][0] // empty
-          ' /tmp/uapi_last.json)"
+          ' /tmp/zoneedit_last.json)"
 
-          if [ -z "$LINE_INDEX" ] || [ "$LINE_INDEX" = "null" ]; then
-            echo "UAPI fetch_zone missing line_index; trying ZoneEdit API2"
-            BODY="$(mktemp)"
-            CODE="$(curl -sS -m 30 -k "${AUTH[@]}" \
-              -H "Accept: application/json" \
-              -G "${CPANEL}/json-api/cpanel" \
-              --data-urlencode "cpanel_jsonapi_apiversion=2" \
-              --data-urlencode "cpanel_jsonapi_module=ZoneEdit" \
-              --data-urlencode "cpanel_jsonapi_func=fetchzone_records" \
-              --data-urlencode "domain=${ZONE}" \
-              -o "$BODY" -w "%{http_code}")"
-            echo "ZoneEdit.fetchzone_records HTTP ${CODE}"
-            jq '{error: .cpanelresult.error, data: (.cpanelresult.data // [])}' "$BODY" | head -c 4000
-            LINE="$(jq -r '
-              [.cpanelresult.data[]?
-                | select(.type == "CNAME")
-                | select(.name == ("www." + $zone) or .name == "www" or (.name | test("^www\\.")))
-                | .line
-              ][0] // empty
-            ' --arg zone "${ZONE}." "$BODY")"
-            if [ -z "$LINE" ] || [ "$LINE" = "null" ]; then
-              echo "Could not find www CNAME"
-              exit 1
-            fi
-            echo "Updating line ${LINE} via ZoneEdit"
-            EDIT_BODY="$(mktemp)"
-            CODE="$(curl -sS -m 30 -k "${AUTH[@]}" \
-              -H "Accept: application/json" \
-              -G "${CPANEL}/json-api/cpanel" \
-              --data-urlencode "cpanel_jsonapi_apiversion=2" \
-              --data-urlencode "cpanel_jsonapi_module=ZoneEdit" \
-              --data-urlencode "cpanel_jsonapi_func=edit_zone_record" \
-              --data-urlencode "domain=${ZONE}" \
-              --data-urlencode "line=${LINE}" \
-              --data-urlencode "type=CNAME" \
-              --data-urlencode "address=${TARGET}." \
-              -o "$EDIT_BODY" -w "%{http_code}")"
-            echo "ZoneEdit.edit_zone_record HTTP ${CODE}"
-            jq '.' "$EDIT_BODY"
-            RESULT="$(jq -r '.cpanelresult.event.result // .cpanelresult.data[0].result // empty' "$EDIT_BODY")"
-            if [ "$RESULT" != "1" ]; then exit 1; fi
-          else
-            echo "Updating line_index ${LINE_INDEX} via mass_edit_zone"
-            EDIT_JSON="$(jq -nc --argjson li "$LINE_INDEX" --arg t "$TARGET" \
-              '[{line_index: $li, dname: "www", ttl: 14400, record_type: "CNAME", data: [$t]}]')"
-            uapi DNS mass_edit_zone \
-              --data-urlencode "zone=${ZONE}" \
-              --data-urlencode "edit=${EDIT_JSON}"
-            STATUS="$(jq -r '.status // .result.status // 0' /tmp/uapi_last.json)"
-            if [ "$STATUS" != "1" ]; then exit 1; fi
+          if [ -z "$LINE" ] || [ "$LINE" = "null" ]; then
+            echo "Could not find www CNAME. CNAME records:"
+            jq '[.cpanelresult.data[]? | select(.type == "CNAME") | {name, line, record}]' /tmp/zoneedit_last.json
+            exit 1
           fi
+
+          echo "Updating line ${LINE}: www CNAME -> ${TARGET}"
+          zoneedit edit_zone_record \
+            --data-urlencode "domain=${ZONE}" \
+            --data-urlencode "line=${LINE}" \
+            --data-urlencode "type=CNAME" \
+            --data-urlencode "address=${TARGET}."
+
+          RESULT="$(jq -r '.cpanelresult.event.result // .cpanelresult.data[0].result // empty' /tmp/zoneedit_last.json)"
+          if [ "$RESULT" != "1" ]; then
+            jq '.' /tmp/zoneedit_last.json
+            exit 1
+          fi
+          echo "Zone update accepted"
 
           echo "=== Verify DNS and site ==="
           for i in 1 2 3 4 5 6; do
