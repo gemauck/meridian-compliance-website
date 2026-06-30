@@ -8,6 +8,26 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    X-Robots-Tag = "index, follow"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    X-Robots-Tag = "index, follow"
+
+[[headers]]
+  for = "/insights/*"
+  [headers.values]
+    X-Robots-Tag = "index, follow"
+
+[[headers]]
+  for = "/thank-you.html"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+
 [[redirects]]
   from = "/insights"
   to = "/insights/"
