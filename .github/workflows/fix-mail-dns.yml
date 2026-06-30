@@ -1,0 +1,81 @@
+name: Fix mail DNS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect and fix Netlify DNS for mail
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          DOMAIN="meridianconsulting.co.za"
+          SITE_ID="0706de37-1a8b-44f1-9949-52c6f0dae485"
+
+          echo "=== DNS zones ==="
+          ZONES=$(curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            "https://api.netlify.com/api/v1/dns_zones")
+          echo "$ZONES" | jq '[.[] | {id, name, account_slug}]'
+
+          ZONE_ID=$(echo "$ZONES" | jq -r --arg d "$DOMAIN" '.[] | select(.name == $d) | .id')
+          if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "null" ]; then
+            echo "No DNS zone found for $DOMAIN"
+            exit 1
+          fi
+          echo "Zone ID: $ZONE_ID"
+
+          echo "=== Current DNS records ==="
+          RECORDS=$(curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            "https://api.netlify.com/api/v1/dns_zones/$ZONE_ID/dns_records")
+          echo "$RECORDS" | jq '[.[] | {id, type, hostname, value, priority, ttl}]'
+
+          MAIL_IP=$(dig +short cp75.domains.co.za A | head -1)
+          echo "cp75.domains.co.za resolves to: $MAIL_IP"
+
+          update_or_create() {
+            local host="$1"
+            local ip="$2"
+            local existing
+            existing=$(echo "$RECORDS" | jq -r --arg h "$host" '.[] | select(.type=="A" and .hostname==$h) | .id' | head -1)
+            if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+              current=$(echo "$RECORDS" | jq -r --arg h "$host" '.[] | select(.type=="A" and .hostname==$h) | .value' | head -1)
+              if [ "$current" = "$ip" ]; then
+                echo "$host already points to $ip"
+                return
+              fi
+              echo "Updating $host from $current to $ip"
+              curl -sS -X PUT "https://api.netlify.com/api/v1/dns_zones/$ZONE_ID/dns_records/$existing" \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"A\",\"hostname\":\"$host\",\"value\":\"$ip\",\"ttl\":3600}" | jq '{id, hostname, value}'
+            else
+              echo "Creating A record for $host -> $ip"
+              curl -sS -X POST "https://api.netlify.com/api/v1/dns_zones/$ZONE_ID/dns_records" \
+                -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"A\",\"hostname\":\"$host\",\"value\":\"$ip\",\"ttl\":3600}" | jq '{id, hostname, value}'
+            fi
+          }
+
+          for host in mail webmail cpanel autodiscover; do
+            update_or_create "$host" "$MAIL_IP"
+          done
+
+          echo "=== Verify mail host connectivity from GitHub runner ==="
+          for host in mail.meridianconsulting.co.za webmail.meridianconsulting.co.za cp75.domains.co.za webmail.domains.co.za; do
+            ip=$(dig +short "$host" A | head -1)
+            echo -n "$host ($ip): "
+            if timeout 5 bash -c "echo >/dev/tcp/${ip:-$host}/443" 2>/dev/null; then
+              echo "443 open"
+            else
+              echo "443 closed/timeout"
+            fi
+          done
+
+          echo "=== Updated DNS records ==="
+          curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            "https://api.netlify.com/api/v1/dns_zones/$ZONE_ID/dns_records" \
+            | jq '[.[] | select(.hostname | test("mail|webmail|cpanel|autodiscover|MX|mx"; "i")) | {type, hostname, value, priority}]'
