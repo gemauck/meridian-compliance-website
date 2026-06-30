@@ -48,3 +48,23 @@ jobs:
             code=$(curl -sS -m 15 -k -o /dev/null -w "%{http_code}" "$url" || echo "000")
             echo "$url -> HTTP $code"
           done
+
+          if [ -n "${NEW_PASSWORD:-}" ]; then
+            echo "=== IMAP auth test ==="
+            python3 - <<'PY'
+import os, imaplib, ssl
+host = "mail.meridianconsulting.co.za"
+user = "info@meridianconsulting.co.za"
+password = os.environ.get("NEW_PASSWORD", "")
+for h in [host, os.environ.get("FTP_SERVER", ""), "cp75.domains.co.za"]:
+    if not h:
+        continue
+    try:
+        M = imaplib.IMAP4_SSL(h, 993, ssl_context=ssl.create_default_context())
+        M.login(user, password)
+        print(f"IMAP OK on {h}")
+        M.logout()
+    except Exception as e:
+        print(f"IMAP FAIL on {h}: {e}")
+PY
+          fi
