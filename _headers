@@ -1,0 +1,16 @@
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/*.html
+  X-Robots-Tag: index, follow
+
+/
+  X-Robots-Tag: index, follow
+
+/insights/*
+  X-Robots-Tag: index, follow
+
+/thank-you.html
+  X-Robots-Tag: noindex
