@@ -19,60 +19,22 @@ jobs:
           echo "FTP_USERNAME=$FTP_USERNAME"
 
           CPANEL="https://${FTP_SERVER}:2083"
-          echo "=== Existing mailboxes ==="
-          LIST_BODY="$(mktemp)"
-          LIST_CODE="$(curl -sS -m 20 -k -o "$LIST_BODY" -w "%{http_code}" -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
-            "${CPANEL}/execute/Email/list_pops")"
-          echo "list_pops HTTP $LIST_CODE"
-          jq '{status, errors, data: (.data // [] | map(.email))}' "$LIST_BODY" 2>/dev/null \
-            || { echo "list_pops response (first 400 chars):"; head -c 400 "$LIST_BODY"; echo; }
+          echo "=== Forward info@ to Gmail ==="
+          FWD_BODY="$(mktemp)"
+          FWD_CODE="$(curl -sS -m 20 -k -o "$FWD_BODY" -w "%{http_code}" -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            -G "${CPANEL}/execute/Email/add_forwarder" \
+            --data-urlencode "domain=meridianconsulting.co.za" \
+            --data-urlencode "email=info" \
+            --data-urlencode "fwdopt=fwd" \
+            --data-urlencode "fwdemail=gemauck@gmail.com")"
+          echo "add_forwarder HTTP $FWD_CODE"
+          jq '{status, errors, messages}' "$FWD_BODY" 2>/dev/null || head -c 400 "$FWD_BODY"
 
-          echo "=== Reset password for info@meridianconsulting.co.za ==="
-          PAYLOAD="$(jq -n --arg email "info" --arg password "$NEW_PASSWORD" --arg domain "meridianconsulting.co.za" \
-            '{email: $email, password: $password, domain: $domain}')"
-          RESET_BODY="$(mktemp)"
-          RESET_CODE="$(curl -sS -m 20 -k -o "$RESET_BODY" -w "%{http_code}" -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "${CPANEL}/execute/Email/passwd_pop")"
-          echo "passwd_pop HTTP $RESET_CODE"
-          jq '{status, errors, messages}' "$RESET_BODY"
-          test "$(jq -r '.status // 0' "$RESET_BODY")" = "1"
-
-          echo "=== POP3 auth test ==="
-          python3 - <<'PY'
-          import os, poplib
-          user = "info@meridianconsulting.co.za"
-          password = os.environ["NEW_PASSWORD"]
-          for h in ["mail.meridianconsulting.co.za", os.environ["FTP_SERVER"], "cp75.domains.co.za"]:
-              for port, ssl in [(995, True), (110, False)]:
-                  try:
-                      if ssl:
-                          M = poplib.POP3_SSL(h, port, timeout=20)
-                      else:
-                          M = poplib.POP3(h, port, timeout=20)
-                      M.user(user)
-                      M.pass_(password)
-                      print(f"POP OK on {h}:{port} ssl={ssl}")
-                      M.quit()
-                  except Exception as e:
-                      print(f"POP FAIL on {h}:{port} ssl={ssl}: {e}")
-          PY
-
-          echo "=== IMAP auth test ==="
-          python3 - <<'PY'
-          import os, imaplib, ssl
-          user = "info@meridianconsulting.co.za"
-          password = os.environ["NEW_PASSWORD"]
-          for h in ["mail.meridianconsulting.co.za", os.environ["FTP_SERVER"], "cp75.domains.co.za"]:
-              try:
-                  M = imaplib.IMAP4_SSL(h, 993, ssl_context=ssl.create_default_context())
-                  M.login(user, password)
-                  print(f"IMAP OK on {h}")
-                  M.logout()
-              except Exception as e:
-                  print(f"IMAP FAIL on {h}: {e}")
-          PY
+          echo "=== List forwarders ==="
+          curl -sS -m 20 -k -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            -G "${CPANEL}/execute/Email/list_forwarders" \
+            --data-urlencode "domain=meridianconsulting.co.za" \
+            | jq '{status, errors, data: (.data // [] | map({dest, forward}))}' 2>/dev/null || true
 
           echo "=== Webmail reachability ==="
           for url in "https://webmail.domains.co.za" "https://webmail.meridianconsulting.co.za" "https://${FTP_SERVER}:2096"; do
