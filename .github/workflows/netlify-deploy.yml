@@ -3,6 +3,7 @@ name: Deploy to Netlify
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -14,3 +15,53 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: npx --yes netlify-cli@latest deploy --prod --dir . --site 0706de37-1a8b-44f1-9949-52c6f0dae485
+
+      - name: Set www as primary Netlify domain
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          curl -sS -X PATCH "https://api.netlify.com/api/v1/sites/0706de37-1a8b-44f1-9949-52c6f0dae485" \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"custom_domain":"www.meridianconsulting.co.za"}' \
+            | jq '{custom_domain, domain_aliases, ssl_url, url}'
+
+      - name: Report Netlify domain status
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          echo "=== Netlify domains ==="
+          curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            "https://api.netlify.com/api/v1/sites/0706de37-1a8b-44f1-9949-52c6f0dae485/domains" \
+            | jq '.[] | {hostname, ssl_status, dns_zone_id}'
+
+      - name: Notify search engines of sitemap
+        run: |
+          SITEMAP="https://www.meridianconsulting.co.za/sitemap.xml"
+          ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SITEMAP', safe=''))")
+          echo "Bing ping:"
+          curl -sS "https://www.bing.com/ping?sitemap=${ENCODED}" || true
+          echo ""
+          echo "Yandex ping:"
+          curl -sS "https://webmaster.yandex.com/ping?sitemap=${ENCODED}" || true
+
+      - name: Submit URLs to IndexNow
+        run: |
+          curl -sS -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "host": "www.meridianconsulting.co.za",
+              "key": "bb991d6cd7d319cfa06a160c20c97671",
+              "keyLocation": "https://www.meridianconsulting.co.za/bb991d6cd7d319cfa06a160c20c97671.txt",
+              "urlList": [
+                "https://www.meridianconsulting.co.za/",
+                "https://www.meridianconsulting.co.za/diesel-refund-compliance.html",
+                "https://www.meridianconsulting.co.za/diesel-refund-resources.html",
+                "https://www.meridianconsulting.co.za/sars-dispute-support.html",
+                "https://www.meridianconsulting.co.za/customs-excise-advisory.html",
+                "https://www.meridianconsulting.co.za/insights/",
+                "https://www.meridianconsulting.co.za/insights/sars-objection-evidence-checklist.html",
+                "https://www.meridianconsulting.co.za/insights/diesel-refund-audit-evidence-gaps.html"
+              ]
+            }'
+          echo ""
