@@ -1,8 +1,8 @@
 name: Deploy to Netlify
 
+# Netlify deploys are paused while the free-plan credit limit is exceeded.
+# Run manually after credits are restored or the plan is upgraded.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
