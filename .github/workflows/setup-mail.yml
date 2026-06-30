@@ -17,7 +17,7 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          NEW_PASSWORD: ${{ inputs.new_password }}
+          NEW_PASSWORD: ${{ inputs.new_password || secrets.EMAIL_PASSWORD }}
         run: |
           set -euo pipefail
           echo "FTP_SERVER=$FTP_SERVER"
@@ -36,11 +36,11 @@ jobs:
           done
 
           if [ -n "${NEW_PASSWORD:-}" ]; then
-            echo "=== Create or update info@meridianconsulting.co.za ==="
+            echo "=== Reset password for info@meridianconsulting.co.za ==="
             curl -sS -m 20 -k -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
               -H "Content-Type: application/json" \
-              -d "{\"email\":\"info\",\"password\":\"${NEW_PASSWORD}\",\"quota\":1024,\"domain\":\"meridianconsulting.co.za\"}" \
-              "${CPANEL}/execute/Email/add_pop" | jq . || true
+              -d "{\"email\":\"info\",\"password\":\"${NEW_PASSWORD}\",\"domain\":\"meridianconsulting.co.za\"}" \
+              "${CPANEL}/execute/Email/passwd_pop" | jq '{status, errors, messages}' || true
           fi
 
           echo "=== Webmail reachability ==="
