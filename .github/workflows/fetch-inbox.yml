@@ -10,14 +10,20 @@ jobs:
       - name: List recent inbox messages
         env:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
         run: |
           python3 - <<'PY'
-          import imaplib, ssl, email
+          import os, imaplib, ssl, email, sys
           from email.header import decode_header
 
           user = "info@meridianconsulting.co.za"
-          password = __import__("os").environ["EMAIL_PASSWORD"]
-          host = "mail.meridianconsulting.co.za"
+          password = os.environ["EMAIL_PASSWORD"]
+          hosts = [
+              "mail.meridianconsulting.co.za",
+              os.environ.get("FTP_SERVER", ""),
+              "cp75.domains.co.za",
+          ]
+          hosts = [h for h in hosts if h]
 
           def decode_mime(value):
               if not value:
@@ -32,8 +38,21 @@ jobs:
               return "".join(out)
 
           ctx = ssl.create_default_context()
-          M = imaplib.IMAP4_SSL(host, 993, ssl_context=ctx)
-          M.login(user, password)
+          M = None
+          for host in hosts:
+              try:
+                  print(f"Trying IMAP {host}...")
+                  M = imaplib.IMAP4_SSL(host, 993, ssl_context=ctx, timeout=20)
+                  M.login(user, password)
+                  print(f"IMAP OK on {host}")
+                  break
+              except Exception as e:
+                  print(f"IMAP FAIL on {host}: {e}")
+                  M = None
+
+          if not M:
+              sys.exit("Could not connect to any IMAP host")
+
           M.select("INBOX")
           typ, data = M.search(None, "ALL")
           ids = data[0].split()
