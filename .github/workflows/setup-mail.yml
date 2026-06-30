@@ -4,9 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       new_password:
-        description: New mailbox password (leave blank to only list accounts)
+        description: New mailbox password (leave blank to use stored secret)
         required: false
         type: string
+  push:
+    branches: [main]
+    paths: ['.github/workflows/setup-mail.yml']
 
 jobs:
   setup:
@@ -17,9 +20,11 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          NEW_PASSWORD: ${{ inputs.new_password || secrets.EMAIL_PASSWORD }}
+          INPUT_PASSWORD: ${{ inputs.new_password }}
+          SECRET_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
         run: |
           set -euo pipefail
+          NEW_PASSWORD="${INPUT_PASSWORD:-$SECRET_PASSWORD}"
           echo "FTP_SERVER=$FTP_SERVER"
           echo "FTP_USERNAME=$FTP_USERNAME"
 
