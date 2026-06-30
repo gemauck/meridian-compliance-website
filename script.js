@@ -182,7 +182,7 @@ if (contactForm) {
   }
 
   function thankYouPath() {
-    return '/contact.php';
+    return '/thank-you.html';
   }
 
   let widget = document.querySelector('[data-chat-widget]');

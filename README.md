@@ -2,69 +2,47 @@
 
 Static website for Meridian Compliance & Advisory — tax, SARS, diesel refund, customs/excise, and operational compliance advisory.
 
-## Hosting: domains.co.za
+## Hosting: Netlify
 
-Live site: **https://meridianconsulting.co.za** (domains.co.za shared hosting, `public_html`).
+Live site: **https://meridianconsulting.co.za**
 
-### Deploy via GitHub Actions
+### Deploy
 
-Pushing to `main` deploys automatically via FTP (`.github/workflows/deploy.yml`).
+1. Connect this GitHub repo at [app.netlify.com](https://app.netlify.com) → **Add new site** → **Import an existing project**
+2. Build settings: **publish directory** = `.` (root), no build command
+3. Push to `main` → Netlify deploys automatically
 
-**Automatic:** merge or push to `main` — the workflow uploads all site files to `public_html/`.
+Form submissions appear in Netlify → **Forms**. Set email notifications to `info@meridianconsulting.co.za`.
 
-**Manual:** GitHub repo → Actions → **Deploy to domains.co.za** → **Run workflow**.
+### Custom domain DNS (domains.co.za)
 
-Required repository secrets: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`.
+Keep domain registration at domains.co.za. In Netlify → **Domain management**, add `meridianconsulting.co.za` and `www.meridianconsulting.co.za`. Netlify shows the DNS records to add.
 
-No manual FTP upload needed from local machines.
-
-### DNS (required for live domain)
-
-The domain must point at **domains.co.za hosting**, not GitHub Pages.
-
-In the domains.co.za control panel → DNS for `meridianconsulting.co.za`:
+Typically:
 
 | Record | Type | Value |
 |--------|------|-------|
-| `@` (root) | **A** | Your hosting server IP (see cPanel → Server Information; often matches `webmail.` subdomain) |
-| `www` | **A** or **CNAME** | Same hosting IP, or `meridianconsulting.co.za` |
+| `@` | A | Netlify load balancer IP (from Netlify dashboard) |
+| `www` | CNAME | your-site.netlify.app |
 
-**Remove** any records pointing to GitHub Pages:
-
-- A records to `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
-- CNAME `www` → `gemauck.github.io`
-- AAAA records to `2606:50c0:8000::153` / `2606:50c0:8002::153`
-
-After DNS changes, allow up to 24 hours to propagate. The SSL certificate should then be issued by your hosting provider (not `*.github.io`).
-
-GitHub Pages is **not** used for the live site — only FTP deploy to `public_html/` on domains.co.za.
+Remove old GitHub Pages and domains.co.za hosting A/AAAA records when switching.
 
 ### Contact form
 
-Forms POST to `contact.php`, which sends email to `info@meridianconsulting.co.za` via PHP `mail()`.
+Uses [Netlify Forms](https://docs.netlify.com/forms/setup/). On localhost, form submits via `mailto:` fallback. Success redirect: `/thank-you.html`.
 
-If emails don't arrive:
-- Confirm `noreply@meridianconsulting.co.za` exists on your hosting (or change the `From` address in `contact.php` to a mailbox on your domain)
-- Check domains.co.za spam filters and hosting mail logs
-- Contact domains.co.za support to confirm PHP `mail()` is enabled
+### SEO
 
-### SEO after upload
-
-1. **Google Search Console** (one-time setup)
-   - Go to [search.google.com/search-console](https://search.google.com/search-console)
-   - Add property: `meridianconsulting.co.za`
-   - Verify via DNS TXT record (domains.co.za control panel) or HTML file upload
-   - After verification: **Sitemaps** → submit `https://meridianconsulting.co.za/sitemap.xml`
-   - Use **URL inspection** on the homepage to request indexing
-2. **Google Business Profile** — create or claim a profile for branded and local search
-3. **Plausible analytics** — enabled in `script.js` for `meridianconsulting.co.za`. Register the domain at [plausible.io](https://plausible.io) (free trial or paid) to see real visitor stats
+1. **Google Search Console** — verify `meridianconsulting.co.za`, submit `https://meridianconsulting.co.za/sitemap.xml`
+2. **Google Business Profile** — for local/branded search
+3. **Plausible analytics** — enabled in `script.js` for `meridianconsulting.co.za`
 4. **Principal bio** — update the About section with name, photo and credentials
 
 ## Files
 
 - `index.html` — main site
-- `contact.php` — form handler for domains.co.za hosting
-- `.htaccess` — redirects and security headers
+- `netlify.toml` — deploy config, headers, redirects
+- `thank-you.html` — form success page
 - `diesel-refund-compliance.html`, `sars-dispute-support.html`, `customs-excise-advisory.html` — SEO landing pages
 - `insights/` — articles
 - `sitemap.xml`, `robots.txt` — search engines
