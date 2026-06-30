@@ -18,6 +18,27 @@ Required repository secrets: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`.
 
 No manual FTP upload needed from local machines.
 
+### DNS (required for live domain)
+
+The domain must point at **domains.co.za hosting**, not GitHub Pages.
+
+In the domains.co.za control panel → DNS for `meridianconsulting.co.za`:
+
+| Record | Type | Value |
+|--------|------|-------|
+| `@` (root) | **A** | Your hosting server IP (see cPanel → Server Information; often matches `webmail.` subdomain) |
+| `www` | **A** or **CNAME** | Same hosting IP, or `meridianconsulting.co.za` |
+
+**Remove** any records pointing to GitHub Pages:
+
+- A records to `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
+- CNAME `www` → `gemauck.github.io`
+- AAAA records to `2606:50c0:8000::153` / `2606:50c0:8002::153`
+
+After DNS changes, allow up to 24 hours to propagate. The SSL certificate should then be issued by your hosting provider (not `*.github.io`).
+
+GitHub Pages is **not** used for the live site — only FTP deploy to `public_html/` on domains.co.za.
+
 ### Contact form
 
 Forms POST to `contact.php`, which sends email to `info@meridianconsulting.co.za` via PHP `mail()`.
@@ -29,9 +50,14 @@ If emails don't arrive:
 
 ### SEO after upload
 
-1. **Google Search Console** — verify `meridianconsulting.co.za`, submit `https://meridianconsulting.co.za/sitemap.xml`
-2. **Google Business Profile** — for local/branded search
-3. **Analytics** — set `ANALYTICS_DOMAIN` in `script.js` to `'meridianconsulting.co.za'`
+1. **Google Search Console** (one-time setup)
+   - Go to [search.google.com/search-console](https://search.google.com/search-console)
+   - Add property: `meridianconsulting.co.za`
+   - Verify via DNS TXT record (domains.co.za control panel) or HTML file upload
+   - After verification: **Sitemaps** → submit `https://meridianconsulting.co.za/sitemap.xml`
+   - Use **URL inspection** on the homepage to request indexing
+2. **Google Business Profile** — create or claim a profile for branded and local search
+3. **Plausible analytics** — enabled in `script.js` for `meridianconsulting.co.za`. Register the domain at [plausible.io](https://plausible.io) (free trial or paid) to see real visitor stats
 4. **Principal bio** — update the About section with name, photo and credentials
 
 ## Files
@@ -43,9 +69,4 @@ If emails don't arrive:
 - `insights/` — articles
 - `sitemap.xml`, `robots.txt` — search engines
 
-## GitHub mirror (optional)
-
-A copy is also on GitHub Pages for preview only:  
-https://github.com/gemauck/meridian-compliance-website
-
-Your live site should be **meridianconsulting.co.za** on domains.co.za.
+Repository: https://github.com/gemauck/meridian-compliance-website
