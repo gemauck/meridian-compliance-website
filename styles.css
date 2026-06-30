@@ -143,6 +143,8 @@ h3 { font-size: 1.35rem; margin: 14px 0 10px; line-height: 1.2; }
 .quote-card { background: var(--ink); color: white; min-height: 330px; display: flex; flex-direction: column; justify-content: center; }
 .quote-card p { font-size: clamp(2rem, 4vw, 3.8rem); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 18px; color: white; }
 .quote-card span { color: rgba(255,255,255,.68); }
+.principal-list { margin: 18px 0; padding-left: 1.2rem; color: var(--muted); }
+.principal-list li { margin-bottom: 8px; }
 .contact-panel { display: grid; grid-template-columns: 1fr .9fr; gap: 42px; align-items: start; background: var(--ink); color: white; }
 .contact-panel p { color: rgba(255,255,255,.68); }
 .contact-box { display: grid; gap: 12px; }

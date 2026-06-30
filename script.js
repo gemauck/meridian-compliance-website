@@ -141,7 +141,7 @@ if (contactForm) {
   window.__meridianChatReady = true;
 
   const KNOWLEDGE = [
-    { id: 'services', keywords: ['service', 'services', 'offer', 'help with', 'what do you', 'what can you', 'advisory', 'support'], reply: 'Meridian provides advisory support across:\n\n• SARS, tax and dispute strategy\n• Diesel refund compliance\n• Fuel systems and operational controls\n• Customs and excise matters\n• Data, AI and workflow improvement\n• Operational risk reviews\n\nWhich area is closest to your situation?' },
+    { id: 'services', keywords: ['service', 'services', 'offer', 'help with', 'what do you', 'what can you', 'advisory', 'support'], reply: 'Meridian provides advisory support across:\n\n• SARS, tax and dispute strategy\n• Diesel refund compliance\n• Fuel systems and operational controls\n• Customs and excise matters\n• Data analytics and compliance reporting\n• Operational risk reviews\n\nWhich area is closest to your situation?' },
     { id: 'diesel', keywords: ['diesel', 'refund', 'eligible use', 'logbook', 'fuel claim', 'litre', 'liters'], reply: 'Diesel refund work typically covers eligible use analysis, logbooks, source documents, fuel records, site controls and claim support.\n\nThe focus is making sure the position is provable, not just theoretically correct.' },
     { id: 'sars', keywords: ['sars', 'audit', 'dispute', 'objection', 'appeal', 'assessment', 'tax dispute'], reply: 'SARS and tax dispute support includes audit response, evidence preparation, legal and factual submissions, objection and appeal strategy, and structured engagement with SARS.\n\nIf you are already in a dispute, it helps to map the evidence early.' },
     { id: 'customs', keywords: ['customs', 'excise', 'import', 'export', 'duty'], reply: 'Customs and excise advisory covers interpretation, evidence mapping, dispute strategy, response letters and preparation for scrutiny, especially where records and operational reality need to align.' },
@@ -150,7 +150,7 @@ if (contactForm) {
     { id: 'fit', keywords: ['who', 'client', 'good fit', 'work with', 'industries', 'mining companies'], reply: 'Meridian is a good fit for mining companies, fuel-intensive businesses, industrial operators, tax and compliance teams, business owners, attorneys and consultants dealing with complex, evidence-heavy matters.' },
     { id: 'contact', keywords: ['contact', 'email', 'reach', 'call', 'speak', 'enquiry', 'inquiry', 'get in touch', 'talk to'], reply: null, action: 'contact' },
     { id: 'fees', keywords: ['fee', 'fees', 'cost', 'price', 'rate', 'quote', 'budget', 'charge'], reply: 'Fees depend on the matter: scope, urgency, evidence complexity and the level of support needed. Share a short outline of the issue and Meridian can discuss whether advisory support is appropriate.', action: 'contact' },
-    { id: 'ai', keywords: ['ai', 'artificial intelligence', 'automation', 'workflow', 'data'], reply: 'Meridian also advises on practical AI adoption for documents, reports, analysis, exception identification and internal workflows, where it genuinely improves evidence management and decision support.' },
+    { id: 'ai', keywords: ['ai', 'artificial intelligence', 'automation', 'workflow', 'data', 'analytics', 'reporting', 'dashboard', 'reconciliation'], reply: 'Meridian advises on compliance-oriented data analytics: fuel reconciliations, exception identification, reporting for audits and disputes, evidence management, and practical AI adoption where it improves decision support.\n\nUse the enquiry form to discuss your matter, or visit the Data & analytics page on this site for more detail.' },
     { id: 'disclaimer', keywords: ['legal advice', 'attorney', 'lawyer', 'guarantee', 'liable'], reply: 'This chat provides general information about Meridian\'s advisory services only. It is not legal or tax advice. Substantive matters should be discussed directly so the facts can be reviewed properly.' },
   ];
 
@@ -162,6 +162,7 @@ if (contactForm) {
     { value: 'SARS / tax dispute', label: 'SARS / tax dispute' },
     { value: 'Diesel refund', label: 'Diesel refund' },
     { value: 'Customs / excise', label: 'Customs / excise' },
+    { value: 'Data analytics / reporting', label: 'Data analytics / reporting' },
     { value: 'Fuel systems / controls', label: 'Fuel systems / controls' },
     { value: 'Operational review', label: 'Operational review' },
     { value: 'Other', label: 'Other' },
@@ -172,6 +173,7 @@ if (contactForm) {
     if (path.includes('diesel')) return 'Diesel refund';
     if (path.includes('sars')) return 'SARS / tax dispute';
     if (path.includes('customs') || path.includes('excise')) return 'Customs / excise';
+    if (path.includes('analytics') || path.includes('data-analytics')) return 'Data analytics / reporting';
     return '';
   }
 
@@ -203,7 +205,7 @@ if (contactForm) {
           </header>
           <div class="chat-messages" data-chat-messages role="log" aria-live="polite" aria-relevant="additions"></div>
           <div class="chat-quick-replies" data-chat-quick-replies aria-label="Suggested questions"></div>
-          <form class="chat-contact-form" data-chat-contact-form name="chat-enquiry" method="POST" action="${thankYouPath()}" hidden>
+          <form class="chat-contact-form" data-chat-contact-form name="chat-enquiry" method="POST" data-netlify="true" netlify-honeypot="chat-bot-field" action="${thankYouPath()}" hidden>
             <input type="hidden" name="form-name" value="chat-enquiry" />
             <p class="hidden" aria-hidden="true"><label>Don't fill this out: <input name="chat-bot-field" tabindex="-1" autocomplete="off" /></label></p>
             <p class="chat-contact-label">Send an enquiry</p>
@@ -391,9 +393,10 @@ if (contactForm) {
 
   const { hostname, protocol } = window.location;
   const isLocal = protocol === 'file:' || hostname === 'localhost' || hostname === '127.0.0.1';
+  const usesNetlify = contactForm.hasAttribute('data-netlify') && !isLocal;
 
   contactForm.addEventListener('submit', (e) => {
-    if (!isLocal) {
+    if (usesNetlify) {
       trackEvent('chat-form-submit');
       return;
     }
