@@ -13,23 +13,46 @@ jobs:
   enable-https:
     runs-on: ubuntu-latest
     steps:
-      - name: Enable HTTPS enforcement once certificate exists
+      - name: Check certificate and enable HTTPS
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          state=$(gh api repos/${{ github.repository }}/pages --jq '.https_certificate.state // empty')
-          enforced=$(gh api repos/${{ github.repository }}/pages --jq '.https_enforced')
+          pages=$(gh api repos/${{ github.repository }}/pages)
+          state=$(echo "$pages" | jq -r '.https_certificate.state // empty')
+          enforced=$(echo "$pages" | jq -r '.https_enforced')
+          cname=$(echo "$pages" | jq -r '.cname // empty')
+          echo "Custom domain: ${cname:-none}"
           echo "Certificate state: ${state:-unknown}"
           echo "HTTPS enforced: ${enforced}"
+
           if [ "${enforced}" = "true" ]; then
             echo "HTTPS already enforced."
             exit 0
           fi
+
           if [ "${state}" = "approved" ] || [ "${state}" = "issued" ]; then
             gh api repos/${{ github.repository }}/pages -X PUT -F https_enforced=true
             echo "HTTPS enforcement enabled."
             exit 0
           fi
+
+          if [ "${state}" = "dns_changed" ] && [ -n "${cname}" ]; then
+            echo "Certificate stuck on dns_changed — cycling custom domain..."
+            gh api repos/${{ github.repository }}/pages -X PUT \
+              -f build_type=legacy \
+              -f cname= \
+              -f 'source[branch]=main' \
+              -f 'source[path]=/'
+            sleep 20
+            gh api repos/${{ github.repository }}/pages -X PUT \
+              -f build_type=legacy \
+              -f cname="${cname}" \
+              -f 'source[branch]=main' \
+              -f 'source[path]=/'
+            echo "Custom domain re-added; waiting for certificate provisioning."
+            exit 0
+          fi
+
           if gh api repos/${{ github.repository }}/pages -X PUT -F https_enforced=true 2>/tmp/https-error.log; then
             echo "HTTPS enforcement enabled."
           else
