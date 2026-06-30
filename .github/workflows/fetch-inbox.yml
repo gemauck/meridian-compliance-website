@@ -1,0 +1,49 @@
+name: Fetch inbox
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List recent inbox messages
+        env:
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import imaplib, ssl, email
+          from email.header import decode_header
+
+          user = "info@meridianconsulting.co.za"
+          password = __import__("os").environ["EMAIL_PASSWORD"]
+          host = "mail.meridianconsulting.co.za"
+
+          def decode_mime(value):
+              if not value:
+                  return ""
+              parts = decode_header(value)
+              out = []
+              for text, enc in parts:
+                  if isinstance(text, bytes):
+                      out.append(text.decode(enc or "utf-8", errors="replace"))
+                  else:
+                      out.append(text)
+              return "".join(out)
+
+          ctx = ssl.create_default_context()
+          M = imaplib.IMAP4_SSL(host, 993, ssl_context=ctx)
+          M.login(user, password)
+          M.select("INBOX")
+          typ, data = M.search(None, "ALL")
+          ids = data[0].split()
+          print(f"INBOX_TOTAL={len(ids)}")
+          for msg_id in ids[-15:]:
+              typ, msg_data = M.fetch(msg_id, "(RFC822.HEADER)")
+              msg = email.message_from_bytes(msg_data[0][1])
+              print("---")
+              print(f"From: {decode_mime(msg.get('From'))}")
+              print(f"Date: {msg.get('Date', '')}")
+              print(f"Subject: {decode_mime(msg.get('Subject'))}")
+          M.logout()
+          PY
