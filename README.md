@@ -4,7 +4,7 @@ Static website for Meridian Compliance & Advisory — tax, SARS, diesel refund, 
 
 ## Hosting: Netlify
 
-Live site: **https://meridianconsulting.co.za**
+Live site: **https://www.meridianconsulting.co.za**
 
 ### Deploy
 
@@ -33,7 +33,7 @@ Uses [Netlify Forms](https://docs.netlify.com/forms/setup/). On localhost, form 
 
 ### SEO
 
-1. **Google Search Console** — verify `meridianconsulting.co.za`, submit `https://meridianconsulting.co.za/sitemap.xml`
+1. **Google Search Console** — verify `meridianconsulting.co.za`, submit `https://www.meridianconsulting.co.za/sitemap.xml`
 2. **Google Business Profile** — for local/branded search
 3. **Plausible analytics** — enabled in `script.js` for `meridianconsulting.co.za`
 4. **Principal bio** — update the About section with name, photo and credentials
