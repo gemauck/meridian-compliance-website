@@ -7,38 +7,16 @@ jobs:
   fix-dns:
     runs-on: ubuntu-latest
     steps:
-      - name: Diagnose Netlify access and mail hosting
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      - name: Test webmail endpoints
         run: |
-          set -euo pipefail
-          SITE_ID="0706de37-1a8b-44f1-9949-52c6f0dae485"
-
-          echo "=== FTP server from hosting secret ==="
-          echo "FTP_SERVER=$FTP_SERVER"
-
-          echo "=== Netlify site ==="
-          curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            "https://api.netlify.com/api/v1/sites/$SITE_ID" \
-            | jq '{name, custom_domain, domain_aliases, account_slug, account_id}'
-
-          echo "=== DNS zones (account) ==="
-          curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            "https://api.netlify.com/api/v1/dns_zones" | jq .
-
-          echo "=== Accounts ==="
-          curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            "https://api.netlify.com/api/v1/accounts" | jq '[.[] | {slug, name}]'
-
-          echo "=== Mail host connectivity ==="
-          for host in "$FTP_SERVER" cp75.domains.co.za mail.meridianconsulting.co.za webmail.domains.co.za; do
-            [ -z "$host" ] && continue
-            ip=$(dig +short "$host" A | head -1)
-            echo -n "$host ($ip): "
-            if timeout 5 bash -c "echo >/dev/tcp/${ip:-$host}/443" 2>/dev/null; then
-              echo "443 open"
-            else
-              echo "443 closed/timeout"
-            fi
+          for url in \
+            "https://webmail.meridianconsulting.co.za" \
+            "https://mail.meridianconsulting.co.za" \
+            "https://meridianconsulting.co.za:2096" \
+            "https://cp75.domains.co.za:2096" \
+            "https://webmail.domains.co.za"; do
+            echo "=== $url ==="
+            curl -sS -m 20 -k -o /tmp/body.html -w "HTTP %{http_code}\n" "$url" || echo "FAILED"
+            head -5 /tmp/body.html 2>/dev/null || true
+            echo
           done
