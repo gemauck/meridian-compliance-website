@@ -20,15 +20,24 @@ jobs:
 
           CPANEL="https://${FTP_SERVER}:2083"
           echo "=== Existing mailboxes ==="
-          curl -sS -m 20 -k -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
-            "${CPANEL}/execute/Email/list_pops" \
-            | jq '{status, errors, data: (.data // [] | map(.email))}'
+          LIST_BODY="$(mktemp)"
+          LIST_CODE="$(curl -sS -m 20 -k -o "$LIST_BODY" -w "%{http_code}" -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            "${CPANEL}/execute/Email/list_pops")"
+          echo "list_pops HTTP $LIST_CODE"
+          jq '{status, errors, data: (.data // [] | map(.email))}' "$LIST_BODY" 2>/dev/null \
+            || { echo "list_pops response (first 400 chars):"; head -c 400 "$LIST_BODY"; echo; }
 
           echo "=== Reset password for info@meridianconsulting.co.za ==="
-          curl -sS -m 20 -k -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
+          PAYLOAD="$(jq -n --arg email "info" --arg password "$NEW_PASSWORD" --arg domain "meridianconsulting.co.za" \
+            '{email: $email, password: $password, domain: $domain}')"
+          RESET_BODY="$(mktemp)"
+          RESET_CODE="$(curl -sS -m 20 -k -o "$RESET_BODY" -w "%{http_code}" -u "${FTP_USERNAME}:${FTP_PASSWORD}" \
             -H "Content-Type: application/json" \
-            -d "{\"email\":\"info\",\"password\":\"${NEW_PASSWORD}\",\"domain\":\"meridianconsulting.co.za\"}" \
-            "${CPANEL}/execute/Email/passwd_pop" | jq '{status, errors, messages}'
+            -d "$PAYLOAD" \
+            "${CPANEL}/execute/Email/passwd_pop")"
+          echo "passwd_pop HTTP $RESET_CODE"
+          jq '{status, errors, messages}' "$RESET_BODY"
+          test "$(jq -r '.status // 0' "$RESET_BODY")" = "1"
 
           echo "=== IMAP auth test ==="
           python3 - <<'PY'
