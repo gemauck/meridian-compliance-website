@@ -39,6 +39,26 @@ jobs:
           jq '{status, errors, messages}' "$RESET_BODY"
           test "$(jq -r '.status // 0' "$RESET_BODY")" = "1"
 
+          echo "=== POP3 auth test ==="
+          python3 - <<'PY'
+          import os, poplib
+          user = "info@meridianconsulting.co.za"
+          password = os.environ["NEW_PASSWORD"]
+          for h in ["mail.meridianconsulting.co.za", os.environ["FTP_SERVER"], "cp75.domains.co.za"]:
+              for port, ssl in [(995, True), (110, False)]:
+                  try:
+                      if ssl:
+                          M = poplib.POP3_SSL(h, port, timeout=20)
+                      else:
+                          M = poplib.POP3(h, port, timeout=20)
+                      M.user(user)
+                      M.pass_(password)
+                      print(f"POP OK on {h}:{port} ssl={ssl}")
+                      M.quit()
+                  except Exception as e:
+                      print(f"POP FAIL on {h}:{port} ssl={ssl}: {e}")
+          PY
+
           echo "=== IMAP auth test ==="
           python3 - <<'PY'
           import os, imaplib, ssl
