@@ -1,0 +1,77 @@
+name: Update DNS to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point www CNAME to Cloudflare Pages
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          TARGET: meridian-compliance-website.pages.dev
+          ZONE: meridianconsulting.co.za
+        run: |
+          set -euo pipefail
+          CPANEL="https://${FTP_SERVER}:2083"
+          AUTH=(-u "${FTP_USERNAME}:${FTP_PASSWORD}")
+
+          echo "=== Parse DNS zone ==="
+          ZONE_JSON="$(mktemp)"
+          curl -sS -m 30 -k "${AUTH[@]}" \
+            -G "${CPANEL}/execute/DNS/parse_zone" \
+            --data-urlencode "zone=${ZONE}" \
+            -o "$ZONE_JSON"
+          jq '{status, errors}' "$ZONE_JSON"
+
+          LINE_INDEX="$(jq -r '
+            [.result.data.zone[]
+              | select((.record_type // .type // "") == "CNAME")
+              | select((.dname // .name // "") | test("^www(\\.meridianconsulting\\.co\\.za)?\\.?$"))
+              | (.line_index // .line // empty)
+            ][0] // empty
+          ' "$ZONE_JSON")"
+
+          if [ -z "$LINE_INDEX" ] || [ "$LINE_INDEX" = "null" ]; then
+            echo "Could not find www CNAME. Zone CNAME records:"
+            jq '[.result.data.zone[] | select((.record_type // .type // "") == "CNAME")]' "$ZONE_JSON"
+            exit 1
+          fi
+
+          echo "Updating www CNAME at line_index=${LINE_INDEX} -> ${TARGET}"
+          EDIT_JSON="$(jq -nc --argjson li "$LINE_INDEX" --arg t "$TARGET" \
+            '[{line_index: $li, dname: "www", ttl: 14400, record_type: "CNAME", data: [$t]}]')"
+
+          EDIT_BODY="$(mktemp)"
+          curl -sS -m 30 -k "${AUTH[@]}" \
+            -G "${CPANEL}/execute/DNS/mass_edit_zone" \
+            --data-urlencode "zone=${ZONE}" \
+            --data-urlencode "edit=${EDIT_JSON}" \
+            -o "$EDIT_BODY"
+          jq '{status, errors, messages, data}' "$EDIT_BODY"
+
+          STATUS="$(jq -r '.status // .result.status // 0' "$EDIT_BODY")"
+          if [ "$STATUS" != "1" ]; then
+            jq '.' "$EDIT_BODY"
+            exit 1
+          fi
+
+          echo "=== Verify DNS and site ==="
+          for i in 1 2 3 4 5 6; do
+            CNAME="$(dig +short "www.${ZONE}" CNAME | tr -d '\n')"
+            echo "Attempt ${i}: www CNAME = ${CNAME:-<empty>}"
+            if echo "$CNAME" | grep -qi "${TARGET}"; then
+              HTTP_CODE="$(curl -sS -m 20 -o /dev/null -w "%{http_code}" "https://www.${ZONE}/" || true)"
+              echo "https://www.${ZONE}/ -> HTTP ${HTTP_CODE}"
+              if [ "$HTTP_CODE" = "200" ]; then
+                curl -sS -m 20 "https://www.${ZONE}/" | grep -o "Gareth Mauck" | head -1 || true
+                exit 0
+              fi
+            fi
+            sleep 20
+          done
+
+          echo "DNS update submitted; propagation or SSL may still be in progress."
