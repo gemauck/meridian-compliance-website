@@ -36,6 +36,37 @@ jobs:
             --data-urlencode "domain=meridianconsulting.co.za" \
             | jq '{status, errors, data: (.data // [] | map({dest, forward}))}' 2>/dev/null || true
 
+          echo "=== Send forwarder test email ==="
+          python3 - <<'PY'
+          import os, smtplib, ssl
+          from email.message import EmailMessage
+          from datetime import datetime, timezone
+
+          user = "info@meridianconsulting.co.za"
+          password = os.environ["NEW_PASSWORD"]
+          stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+          msg = EmailMessage()
+          msg["Subject"] = f"Meridian forwarder test {stamp}"
+          msg["From"] = user
+          msg["To"] = user
+          msg.set_content(
+              f"This is an automated test sent at {stamp}.\n"
+              "If forwarding works, this should appear in gemauck@gmail.com within a few minutes."
+          )
+
+          for host in ["mail.meridianconsulting.co.za", os.environ["FTP_SERVER"]]:
+              try:
+                  with smtplib.SMTP_SSL(host, 465, context=ssl.create_default_context(), timeout=30) as s:
+                      s.login(user, password)
+                      s.send_message(msg)
+                  print(f"SMTP send OK via {host}")
+                  break
+              except Exception as e:
+                  print(f"SMTP send FAIL via {host}: {e}")
+          else:
+              raise SystemExit(1)
+          PY
+
           echo "=== Webmail reachability ==="
           for url in "https://webmail.domains.co.za" "https://webmail.meridianconsulting.co.za" "https://${FTP_SERVER}:2096"; do
             code=$(curl -sS -m 15 -k -o /dev/null -w "%{http_code}" "$url" || echo "000")
