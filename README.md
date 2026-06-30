@@ -1,6 +1,6 @@
 # Meridian Compliance & Advisory Website
 
-Static website for Meridian Compliance & Advisory — tax, SARS, diesel refund, customs/excise, and operational compliance advisory.
+Static website for Meridian Compliance & Advisory, tax, SARS, diesel refund, customs/excise, and operational compliance advisory.
 
 ## Hosting: Netlify
 
@@ -33,18 +33,18 @@ Uses [Netlify Forms](https://docs.netlify.com/forms/setup/). On localhost, form 
 
 ### SEO
 
-1. **Google Search Console** — verify `meridianconsulting.co.za`, submit `https://www.meridianconsulting.co.za/sitemap.xml`
-2. **Google Business Profile** — for local/branded search
-3. **Plausible analytics** — enabled in `script.js` for `meridianconsulting.co.za`
-4. **Principal bio** — update the About section with name, photo and credentials
+1. **Google Search Console**, verify `meridianconsulting.co.za`, submit `https://www.meridianconsulting.co.za/sitemap.xml`
+2. **Google Business Profile**, for local/branded search
+3. **Plausible analytics**, enabled in `script.js` for `meridianconsulting.co.za`
+4. **Principal bio**, update the About section with name, photo and credentials
 
 ## Files
 
-- `index.html` — main site
-- `netlify.toml` — deploy config, headers, redirects
-- `thank-you.html` — form success page
-- `diesel-refund-compliance.html`, `sars-dispute-support.html`, `customs-excise-advisory.html` — SEO landing pages
-- `insights/` — articles
-- `sitemap.xml`, `robots.txt` — search engines
+- `index.html`, main site
+- `netlify.toml`, deploy config, headers, redirects
+- `thank-you.html`, form success page
+- `diesel-refund-compliance.html`, `sars-dispute-support.html`, `customs-excise-advisory.html`, SEO landing pages
+- `insights/`, articles
+- `sitemap.xml`, `robots.txt`, search engines
 
 Repository: https://github.com/gemauck/meridian-compliance-website

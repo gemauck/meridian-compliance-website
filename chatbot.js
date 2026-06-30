@@ -10,7 +10,7 @@
       id: 'diesel',
       keywords: ['diesel', 'refund', 'eligible use', 'logbook', 'fuel claim', 'litre', 'liters'],
       reply:
-        'Diesel refund work typically covers eligible use analysis, logbooks, source documents, fuel records, site controls and claim support.\n\nThe focus is making sure the position is provable — not just theoretically correct.',
+        'Diesel refund work typically covers eligible use analysis, logbooks, source documents, fuel records, site controls and claim support.\n\nThe focus is making sure the position is provable, not just theoretically correct.',
     },
     {
       id: 'sars',
@@ -22,13 +22,13 @@
       id: 'customs',
       keywords: ['customs', 'excise', 'import', 'export', 'duty'],
       reply:
-        'Customs and excise advisory covers interpretation, evidence mapping, dispute strategy, response letters and preparation for scrutiny — especially where records and operational reality need to align.',
+        'Customs and excise advisory covers interpretation, evidence mapping, dispute strategy, response letters and preparation for scrutiny, especially where records and operational reality need to align.',
     },
     {
       id: 'mining',
       keywords: ['mining', 'industrial', 'site', 'fuel management', 'dispensing', 'meters', 'reconciliation'],
       reply:
-        'Mining and industrial work often involves fuel management systems, site-level controls, receiving and dispensing records, meters, asset allocation and reconciliations — the practical side of compliance.',
+        'Mining and industrial work often involves fuel management systems, site-level controls, receiving and dispensing records, meters, asset allocation and reconciliations, the practical side of compliance.',
     },
     {
       id: 'approach',
@@ -52,14 +52,14 @@
       id: 'fees',
       keywords: ['fee', 'fees', 'cost', 'price', 'rate', 'quote', 'budget', 'charge'],
       reply:
-        'Fees depend on the matter — scope, urgency, evidence complexity and the level of support needed. Share a short outline of the issue and Meridian can discuss whether advisory support is appropriate.',
+        'Fees depend on the matter: scope, urgency, evidence complexity and the level of support needed. Share a short outline of the issue and Meridian can discuss whether advisory support is appropriate.',
       action: 'contact',
     },
     {
       id: 'ai',
       keywords: ['ai', 'artificial intelligence', 'automation', 'workflow', 'data'],
       reply:
-        'Meridian also advises on practical AI adoption for documents, reports, analysis, exception identification and internal workflows — where it genuinely improves evidence management and decision support.',
+        'Meridian also advises on practical AI adoption for documents, reports, analysis, exception identification and internal workflows, where it genuinely improves evidence management and decision support.',
     },
     {
       id: 'disclaimer',
@@ -70,7 +70,7 @@
   ];
 
   const GREETING =
-    'Hello — I can help you understand how Meridian advises on tax, SARS, diesel refund, customs/excise, fuel controls and operational compliance matters.\n\nWhat would you like to explore?';
+    'Hello. I can help you understand how Meridian advises on tax, SARS, diesel refund, customs/excise, fuel controls and operational compliance matters.\n\nWhat would you like to explore?';
 
   const QUICK_REPLIES = [
     'What services do you offer?',
@@ -80,7 +80,7 @@
   ];
 
   const FALLBACK =
-    'I may not have a precise answer for that here. For a substantive matter, it is best to speak directly — use the enquiry form below and Meridian will respond by email.';
+    'I may not have a precise answer for that here. For a substantive matter, it is best to speak directly. Use the enquiry form below and Meridian will respond by email.';
 
   const EMAIL = 'info@meridianconsulting.co.za';
 

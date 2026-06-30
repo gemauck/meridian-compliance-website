@@ -38,7 +38,7 @@ jobs:
           fi
 
           if [ "${state}" = "dns_changed" ] && [ -n "${cname}" ]; then
-            echo "Certificate stuck on dns_changed — cycling custom domain..."
+            echo "Certificate stuck on dns_changed, cycling custom domain..."
             gh api repos/${{ github.repository }}/pages -X PUT \
               -f build_type=legacy \
               -f cname= \
