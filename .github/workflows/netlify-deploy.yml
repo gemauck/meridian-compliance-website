@@ -11,24 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Trigger Netlify production deploy
+      - name: Deploy to Netlify
         env:
-          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
-        run: |
-          set -euo pipefail
-          response=$(curl -sS -w "\n%{http_code}" -X POST "$NETLIFY_BUILD_HOOK")
-          body=$(echo "$response" | sed '$d')
-          code=$(echo "$response" | tail -n 1)
-          echo "$body"
-          case "$code" in
-            200|201|202) echo "Build hook accepted (HTTP $code)" ;;
-            *) echo "Build hook failed with HTTP $code"; exit 1 ;;
-          esac
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: npx --yes netlify-cli@latest deploy --prod --dir . --site 0706de37-1a8b-44f1-9949-52c6f0dae485
 
       - name: Wait for deploy to go live
         run: |
-          URL="https://www.meridianconsulting.co.za/insights/sars-new-diesel-refund-platform-2026.html"
-          for i in $(seq 1 36); do
+          URL="https://www.meridianconsulting.co.za/data-analytics-advisory.html"
+          for i in $(seq 1 24); do
             code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL" || echo "000")
             echo "attempt $i: $code"
             if [ "$code" = "200" ]; then
