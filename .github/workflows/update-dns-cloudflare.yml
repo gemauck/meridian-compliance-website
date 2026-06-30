@@ -40,7 +40,7 @@ jobs:
               head -c 500 "$body"
               exit 1
             fi
-            jq '{cpanelresult: {event: .cpanelresult.event, error: .cpanelresult.error, data: (.cpanelresult.data // []) | if type=="array" then .[0:5] else . end}}' "$body"
+            jq '{cpanelresult: {event: .cpanelresult.event, error: .cpanelresult.error, data: (.cpanelresult.data // [])}}' "$body" | head -c 2000
             cp "$body" /tmp/zoneedit_last.json
           }
 
