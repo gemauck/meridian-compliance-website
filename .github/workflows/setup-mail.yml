@@ -67,6 +67,37 @@ jobs:
               raise SystemExit(1)
           PY
 
+          echo "=== Send outgoing test to Gmail ==="
+          python3 - <<'PY'
+          import os, smtplib, ssl
+          from email.message import EmailMessage
+          from datetime import datetime, timezone
+
+          user = "info@meridianconsulting.co.za"
+          password = os.environ["NEW_PASSWORD"]
+          stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+          msg = EmailMessage()
+          msg["Subject"] = f"Meridian outgoing test {stamp}"
+          msg["From"] = user
+          msg["To"] = "gemauck@gmail.com"
+          msg.set_content(
+              f"Outgoing SMTP test from {user} at {stamp}.\n"
+              "If you receive this in Gmail, outgoing mail is working."
+          )
+
+          for host in ["mail.meridianconsulting.co.za", os.environ["FTP_SERVER"]]:
+              try:
+                  with smtplib.SMTP_SSL(host, 465, context=ssl.create_default_context(), timeout=30) as s:
+                      s.login(user, password)
+                      s.send_message(msg)
+                  print(f"Outgoing SMTP OK via {host}")
+                  break
+              except Exception as e:
+                  print(f"Outgoing SMTP FAIL via {host}: {e}")
+          else:
+              raise SystemExit(1)
+          PY
+
           echo "=== Webmail reachability ==="
           for url in "https://webmail.domains.co.za" "https://webmail.meridianconsulting.co.za" "https://${FTP_SERVER}:2096"; do
             code=$(curl -sS -m 15 -k -o /dev/null -w "%{http_code}" "$url" || echo "000")
