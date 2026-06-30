@@ -1,0 +1,146 @@
+name: Point DNS to GitHub Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point www and apex DNS to GitHub Pages
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import urllib.parse
+
+          server = os.environ["FTP_SERVER"]
+          user = os.environ["FTP_USERNAME"]
+          password = os.environ["FTP_PASSWORD"]
+          domain = "meridianconsulting.co.za"
+          github_cname = "gemauck.github.io"
+          github_a = [
+              "185.199.108.153",
+              "185.199.109.153",
+              "185.199.110.153",
+              "185.199.111.153",
+          ]
+          cpanel = f"https://{server}:2083"
+
+          def cpanel_get(path, params):
+              query = urllib.parse.urlencode(params)
+              url = f"{cpanel}{path}?{query}"
+              result = subprocess.run(
+                  ["curl", "-sS", "-m", "30", "-k", "-u", f"{user}:{password}", url],
+                  capture_output=True,
+                  text=True,
+                  check=True,
+              )
+              return json.loads(result.stdout)
+
+          def zone_edit(**params):
+              base = {
+                  "cpanel_jsonapi_user": user,
+                  "cpanel_jsonapi_apiversion": "2",
+                  "cpanel_jsonapi_module": "ZoneEdit",
+              }
+              base.update(params)
+              return cpanel_get("/json-api/cpanel", base)
+
+          zone = cpanel_get("/execute/DNS/parse_zone", {"zone": domain})
+          records = zone.get("data", [])
+          print("Current A/CNAME records:")
+          for record in records:
+              if record.get("record_type") in {"A", "CNAME"}:
+                  print(json.dumps({
+                      "line": record.get("line"),
+                      "name": record.get("dname"),
+                      "type": record.get("record_type"),
+                      "data": (record.get("data") or [""])[0],
+                  }))
+
+          www = next((r for r in records if r.get("dname") == f"www.{domain}." and r.get("record_type") == "CNAME"), None)
+          if www:
+              print(f"Updating www CNAME line {www['line']} -> {github_cname}")
+              response = zone_edit(
+                  cpanel_jsonapi_func="edit_zone_record",
+                  domain=domain,
+                  line=www["line"],
+                  type="CNAME",
+                  cname=github_cname,
+              )
+              print(json.dumps(response.get("cpanelresult", {}).get("event", {}), indent=2))
+          else:
+              print("Adding www CNAME")
+              response = zone_edit(
+                  cpanel_jsonapi_func="add_zone_record",
+                  domain=domain,
+                  name=f"www.{domain}.",
+                  type="CNAME",
+                  cname=github_cname,
+              )
+              print(json.dumps(response.get("cpanelresult", {}).get("event", {}), indent=2))
+
+          apex_records = [r for r in records if r.get("dname") == f"{domain}." and r.get("record_type") == "A"]
+          for record in apex_records:
+              if (record.get("data") or [""])[0] not in github_a:
+                  print(f"Removing apex A line {record['line']} -> {(record.get('data') or [''])[0]}")
+                  response = zone_edit(
+                      cpanel_jsonapi_func="remove_zone_record",
+                      domain=domain,
+                      line=record["line"],
+                  )
+                  print(json.dumps(response.get("cpanelresult", {}).get("event", {}), indent=2))
+
+          zone = cpanel_get("/execute/DNS/parse_zone", {"zone": domain})
+          records = zone.get("data", [])
+          existing_apex = {
+              (r.get("data") or [""])[0]
+              for r in records
+              if r.get("dname") == f"{domain}." and r.get("record_type") == "A"
+          }
+          for ip in github_a:
+              if ip in existing_apex:
+                  print(f"Apex A {ip} already present")
+                  continue
+              print(f"Adding apex A {ip}")
+              response = zone_edit(
+                  cpanel_jsonapi_func="add_zone_record",
+                  domain=domain,
+                  name=f"{domain}.",
+                  type="A",
+                  address=ip,
+              )
+              print(json.dumps(response.get("cpanelresult", {}).get("event", {}), indent=2))
+
+          zone = cpanel_get("/execute/DNS/parse_zone", {"zone": domain})
+          print("Updated A/CNAME records:")
+          for record in zone.get("data", []):
+              if record.get("record_type") in {"A", "CNAME"}:
+                  print(json.dumps({
+                      "name": record.get("dname"),
+                      "type": record.get("record_type"),
+                      "data": (record.get("data") or [""])[0],
+                  }))
+          PY
+
+      - name: Verify live site
+        run: |
+          URL="https://www.meridianconsulting.co.za/data-analytics-advisory.html"
+          for i in $(seq 1 30); do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            echo "attempt $i: $code"
+            if [ "$code" = "200" ]; then
+              curl -sS "$URL" | grep -q "Data analytics" && echo "Deploy verified on custom domain."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "DNS may still be propagating; GitHub Pages content is deployed."
+          exit 0
