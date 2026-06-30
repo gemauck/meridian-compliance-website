@@ -75,5 +75,3 @@ Remove any other A or AAAA records for `@`. In Netlify → **Domain management**
 - `diesel-refund-compliance.html`, `sars-dispute-support.html`, `customs-excise-advisory.html`, SEO landing pages
 - `insights/`, articles
 - `sitemap.xml`, `robots.txt`, search engines
-
-Repository: https://github.com/gemauck/meridian-compliance-website

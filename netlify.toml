@@ -32,3 +32,9 @@
   from = "/insights"
   to = "/insights/"
   status = 301
+
+[[redirects]]
+  from = "/README.md"
+  to = "/404"
+  status = 404
+  force = true
