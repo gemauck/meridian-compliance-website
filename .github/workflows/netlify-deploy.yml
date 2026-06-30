@@ -30,10 +30,10 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: |
-          echo "=== Netlify domains ==="
+          echo "=== Netlify site ==="
           curl -sS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            "https://api.netlify.com/api/v1/sites/0706de37-1a8b-44f1-9949-52c6f0dae485/domains" \
-            | jq '.[] | {hostname, ssl_status, dns_zone_id}'
+            "https://api.netlify.com/api/v1/sites/0706de37-1a8b-44f1-9949-52c6f0dae485" \
+            | jq '{custom_domain, domain_aliases, ssl_url, url}' || true
 
       - name: Notify search engines of sitemap
         run: |
