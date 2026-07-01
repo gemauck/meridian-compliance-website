@@ -19,7 +19,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=meridian-consulting --branch=main
+          command: pages deploy . --project-name=meridian-compliance-website --branch=main
 
       - name: Notify search engines of sitemap
         if: success()

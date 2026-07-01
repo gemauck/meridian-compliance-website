@@ -1,2 +1,4 @@
 /insights /insights/ 301
 /README.md /404 404
+https://meridianconsulting.co.za/* https://www.meridianconsulting.co.za/:splat 301
+http://meridianconsulting.co.za/* https://www.meridianconsulting.co.za/:splat 301

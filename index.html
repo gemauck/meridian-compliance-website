@@ -578,8 +578,7 @@
           </div>
           <div class="contact-box">
             <a class="contact-line" href="mailto:info@meridianconsulting.co.za" data-email data-track="contact-email">info@meridianconsulting.co.za</a>
-            <form class="contact-form" name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/thank-you.html">
-              <input type="hidden" name="form-name" value="contact" />
+            <form class="contact-form" name="contact" method="POST" action="/thank-you.html">
               <p class="hidden" aria-hidden="true">
                 <label>Don’t fill this out: <input name="bot-field" tabindex="-1" autocomplete="off" /></label>
               </p>
@@ -649,14 +648,7 @@
     <a class="button button-primary" href="#contact" data-track="cta-mobile-contact">Contact Meridian</a>
   </aside>
 
-  <form name="chat-enquiry" data-netlify="true" netlify-honeypot="chat-bot-field" hidden>
-    <input type="hidden" name="form-name" value="chat-enquiry" />
-    <input name="name" />
-    <input name="email" />
-    <input name="matter" />
-    <textarea name="message"></textarea>
-  </form>
-
+  <script src="forms.js" defer></script>
   <script src="script.js" defer></script>
 </body>
 </html>

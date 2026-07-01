@@ -122,17 +122,8 @@ if (ANALYTICS_DOMAIN) {
 const contactForm = document.querySelector('.contact-form');
 if (contactForm) {
   contactForm.addEventListener('submit', (event) => {
-    const { hostname, protocol } = window.location;
-    const isLocal = protocol === 'file:' || hostname === 'localhost' || hostname === '127.0.0.1';
-    if (!isLocal) return;
-
     event.preventDefault();
-    const data = new FormData(contactForm);
-    const subject = encodeURIComponent(`Website enquiry - ${data.get('matter') || 'General'}`);
-    const body = encodeURIComponent(
-      `Name: ${data.get('name')}\nEmail: ${data.get('email')}\nMatter: ${data.get('matter')}\n\n${data.get('message')}`
-    );
-    window.location.href = `mailto:info@meridianconsulting.co.za?subject=${subject}&body=${body}`;
+    handleEnquiryForm(contactForm, { source: 'contact' });
   });
 }
 
@@ -205,8 +196,7 @@ if (contactForm) {
           </header>
           <div class="chat-messages" data-chat-messages role="log" aria-live="polite" aria-relevant="additions"></div>
           <div class="chat-quick-replies" data-chat-quick-replies aria-label="Suggested questions"></div>
-          <form class="chat-contact-form" data-chat-contact-form name="chat-enquiry" method="POST" data-netlify="true" netlify-honeypot="chat-bot-field" action="${thankYouPath()}" hidden>
-            <input type="hidden" name="form-name" value="chat-enquiry" />
+          <form class="chat-contact-form" data-chat-contact-form name="chat-enquiry" method="POST" action="${thankYouPath()}" hidden>
             <p class="hidden" aria-hidden="true"><label>Don't fill this out: <input name="chat-bot-field" tabindex="-1" autocomplete="off" /></label></p>
             <p class="chat-contact-label">Send an enquiry</p>
             <label><span>Name</span><input type="text" name="name" required autocomplete="name" /></label>
@@ -391,28 +381,32 @@ if (contactForm) {
     handleUserMessage(input.value);
   });
 
-  const { hostname, protocol } = window.location;
-  const isLocal = protocol === 'file:' || hostname === 'localhost' || hostname === '127.0.0.1';
-  const usesNetlify = contactForm.hasAttribute('data-netlify') && !isLocal;
 
   contactForm.addEventListener('submit', (e) => {
-    if (usesNetlify) {
-      trackEvent('chat-form-submit');
-      return;
-    }
     e.preventDefault();
-    const data = new FormData(contactForm);
-    const name = String(data.get('name') || '').trim();
-    const email = String(data.get('email') || '').trim();
-    const matter = String(data.get('matter') || '').trim();
-    const message = String(data.get('message') || '').trim();
-    if (!name || !email || !matter || !message) return;
-    addUserMessage(`Enquiry from ${name}`);
-    addBotMessage('Opening your email client with your message ready to send…');
-    trackEvent('chat-form-submit');
-    window.location.href = `mailto:${EMAIL}?subject=${encodeURIComponent(`Website chat enquiry - ${matter}`)}&body=${encodeURIComponent(`Name: ${name}\nEmail: ${email}\nMatter: ${matter}\n\nMessage:\n${message}\n\n(Sent via website chat)`)}`;
-    hideContactForm();
-    renderQuickReplies();
+    handleEnquiryForm(contactForm, {
+      source: 'chat',
+      onSuccess: ({ name }) => {
+        addUserMessage(`Enquiry from ${name}`);
+        addBotMessage('Thank you — your enquiry has been sent. Meridian will respond by email.');
+        contactForm.reset();
+        hideContactForm();
+        renderQuickReplies();
+      },
+      onError: () => {
+        addBotMessage('Could not send online. Opening your email app with your message ready to send…');
+        const data = new FormData(contactForm);
+        mailtoFallback({
+          name: String(data.get('name') || '').trim(),
+          email: String(data.get('email') || '').trim(),
+          matter: String(data.get('matter') || '').trim(),
+          message: String(data.get('message') || '').trim(),
+          source: 'chat',
+        });
+        hideContactForm();
+        renderQuickReplies();
+      },
+    });
   });
 
   widget.querySelector('[data-chat-contact-cancel]')?.addEventListener('click', () => {

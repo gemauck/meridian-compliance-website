@@ -7,13 +7,14 @@ jobs:
   update-dns:
     runs-on: ubuntu-latest
     steps:
-      - name: Point www CNAME to Cloudflare Pages
+      - name: Point www CNAME and apex redirect to Cloudflare Pages
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           TARGET: meridian-compliance-website.pages.dev
           ZONE: meridianconsulting.co.za
+          WWW_URL: https://www.meridianconsulting.co.za/
         run: |
           set -euo pipefail
           CPANEL="https://${FTP_SERVER}:2083"
@@ -42,6 +43,19 @@ jobs:
             fi
             cp "$body" /tmp/zoneedit_last.json
           }
+
+          echo "=== Redirect apex to www ==="
+          REDIRECT_BODY="$(mktemp)"
+          REDIRECT_CODE="$(curl -sS -m 30 -k "${AUTH[@]}" \
+            -G "${CPANEL}/execute/Redirect/add" \
+            --data-urlencode "domain=${ZONE}" \
+            --data-urlencode "src=/" \
+            --data-urlencode "redirect=${WWW_URL}" \
+            --data-urlencode "type=permanent" \
+            --data-urlencode "redirect_wildcard=0" \
+            -o "$REDIRECT_BODY" -w "%{http_code}")"
+          echo "Redirect.add HTTP ${REDIRECT_CODE}"
+          jq '{status, errors, messages, data}' "$REDIRECT_BODY" 2>/dev/null || head -c 400 "$REDIRECT_BODY"
 
           echo "=== Fetch zone records ==="
           zoneedit fetchzone_records --data-urlencode "domain=${ZONE}"
@@ -96,3 +110,14 @@ jobs:
           done
 
           echo "DNS update submitted; propagation or SSL may still be in progress."
+
+          echo "=== Check apex redirect ==="
+          for i in 1 2 3 4 5; do
+            APEX_CODE="$(curl -sS -m 20 -o /dev/null -w "%{http_code}" -L "https://${ZONE}/" || true)"
+            APEX_FINAL="$(curl -sS -m 20 -o /dev/null -w "%{url_effective}" -L "https://${ZONE}/" || true)"
+            echo "Attempt ${i}: apex HTTP ${APEX_CODE}, final URL ${APEX_FINAL}"
+            if [ "$APEX_CODE" = "200" ] && echo "$APEX_FINAL" | grep -qi "www.${ZONE}"; then
+              exit 0
+            fi
+            sleep 15
+          done
