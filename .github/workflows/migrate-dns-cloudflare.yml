@@ -1,0 +1,118 @@
+name: Migrate DNS to Cloudflare
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add zone, Pages domains, and DNS records
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ZONE: meridianconsulting.co.za
+          PROJECT: meridian-compliance-website
+          PAGES_TARGET: meridian-compliance-website.pages.dev
+        run: |
+          set -euo pipefail
+          API="https://api.cloudflare.com/client/v4"
+          AUTH=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json")
+
+          echo "=== Look up or create Cloudflare zone ==="
+          ZONE_BODY="$(mktemp)"
+          curl -sS "${AUTH[@]}" "${API}/zones?name=${ZONE}" -o "$ZONE_BODY"
+          ZONE_ID="$(jq -r '.result[0].id // empty' "$ZONE_BODY")"
+
+          if [ -z "$ZONE_ID" ]; then
+            ADD_ZONE="$(mktemp)"
+            CODE="$(curl -sS -o "$ADD_ZONE" -w "%{http_code}" -X POST "${AUTH[@]}" \
+              "${API}/zones" \
+              -d "{\"account\":{\"id\":\"${CLOUDFLARE_ACCOUNT_ID}\"},\"name\":\"${ZONE}\",\"jump_start\":true}")"
+            echo "Create zone HTTP ${CODE}"
+            jq '{success, errors, messages}' "$ADD_ZONE"
+            ZONE_ID="$(jq -r '.result.id // empty' "$ADD_ZONE")"
+          fi
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "Could not create or find zone."
+            exit 1
+          fi
+
+          echo "Zone ID: ${ZONE_ID}"
+          curl -sS "${AUTH[@]}" "${API}/zones/${ZONE_ID}" | jq '{
+            name: .result.name,
+            status: .result.status,
+            nameservers: .result.name_servers
+          }'
+
+          echo "=== Add custom domains to Cloudflare Pages ==="
+          for DOMAIN in "${ZONE}" "www.${ZONE}"; do
+            ADD_BODY="$(mktemp)"
+            CODE="$(curl -sS -o "$ADD_BODY" -w "%{http_code}" -X POST \
+              "${AUTH[@]}" \
+              "${API}/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT}/domains" \
+              -d "{\"name\":\"${DOMAIN}\"}")"
+            echo "Pages domain ${DOMAIN}: HTTP ${CODE}"
+            jq '{success, errors, messages, result}' "$ADD_BODY" 2>/dev/null || cat "$ADD_BODY"
+          done
+
+          echo "=== Ensure www CNAME points at Pages ==="
+          RECORDS="$(mktemp)"
+          curl -sS "${AUTH[@]}" "${API}/zones/${ZONE_ID}/dns_records?type=CNAME&name=www.${ZONE}" -o "$RECORDS"
+          WWW_ID="$(jq -r '.result[0].id // empty' "$RECORDS")"
+          WWW_PAYLOAD="$(jq -n --arg name "www.${ZONE}" --arg content "${PAGES_TARGET}" \
+            '{type:"CNAME", name:$name, content:$content, proxied:true, ttl:1}')"
+
+          if [ -n "$WWW_ID" ]; then
+            curl -sS -X PUT "${AUTH[@]}" "${API}/zones/${ZONE_ID}/dns_records/${WWW_ID}" \
+              -d "$WWW_PAYLOAD" | jq '{success, errors}'
+          else
+            curl -sS -X POST "${AUTH[@]}" "${API}/zones/${ZONE_ID}/dns_records" \
+              -d "$WWW_PAYLOAD" | jq '{success, errors}'
+          fi
+
+          echo "=== Apex to www redirect rule ==="
+          ENTRY="$(mktemp)"
+          curl -sS "${AUTH[@]}" \
+            "${API}/zones/${ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint" \
+            -o "$ENTRY" || true
+          RULESET_ID="$(jq -r '.result.id // empty' "$ENTRY")"
+
+          RULES_PAYLOAD="$(jq -n --arg zone "$ZONE" '{
+            rules: [{
+              expression: "(http.host eq \"" + $zone + "\")",
+              description: "Redirect apex to www",
+              action: "redirect",
+              action_parameters: {
+                from_value: {
+                  status_code: 301,
+                  target_url: {
+                    expression: "concat(\"https://www." + $zone + "\", http.request.uri.path)"
+                  },
+                  preserve_query_string: true
+                }
+              }
+            }]
+          }')"
+
+          if [ -n "$RULESET_ID" ]; then
+            curl -sS -X PUT "${AUTH[@]}" \
+              "${API}/zones/${ZONE_ID}/rulesets/${RULESET_ID}" \
+              -d "$(jq -n --argjson rules "$RULES_PAYLOAD" '{rules: $rules.rules}')" \
+              | jq '{success, errors}'
+          else
+            curl -sS -X POST "${AUTH[@]}" "${API}/zones/${ZONE_ID}/rulesets" \
+              -d "$(jq -n --argjson rules "$RULES_PAYLOAD" \
+                '{name:"Apex to www", kind:"zone", phase:"http_request_dynamic_redirect", rules:$rules.rules}')" \
+              | jq '{success, errors}'
+          fi
+
+          echo ""
+          echo "=== ACTION REQUIRED at domains.co.za ==="
+          echo "Update nameservers to:"
+          curl -sS "${AUTH[@]}" "${API}/zones/${ZONE_ID}" | jq -r '.result.name_servers[]' | while read -r NS; do
+            echo "  - ${NS}"
+          done
+          echo ""
+          echo "After nameservers propagate, apex and www will route through Cloudflare Pages."
