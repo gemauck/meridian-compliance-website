@@ -1,0 +1,21 @@
+name: Check xneelo login type
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show login hint
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+        run: |
+          if [[ "$FTP_USERNAME" == *"@"* ]]; then
+            echo "xneelo_login_type=email"
+            echo "Use email/password login at create.xneelo.com with FTP_USERNAME"
+          else
+            echo "xneelo_login_type=username"
+            echo "Use konsoleH username/password login at create.xneelo.com"
+          fi
+          echo "username_length=${#FTP_USERNAME}"
