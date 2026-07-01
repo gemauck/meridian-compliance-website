@@ -1,0 +1,103 @@
+name: Fix apex DNS for Cloudflare Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-apex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point apex A record at Cloudflare Pages
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ZONE: meridianconsulting.co.za
+          CF_IP_PRIMARY: 172.66.44.157
+          CF_IP_SECONDARY: 172.66.47.99
+          OLD_IP: 75.2.60.5
+        run: |
+          set -euo pipefail
+          CPANEL="https://${FTP_SERVER}:2083"
+          AUTH=(-u "${FTP_USERNAME}:${FTP_PASSWORD}")
+
+          zoneedit() {
+            local func="$1"
+            shift
+            local body
+            body="$(mktemp)"
+            local code
+            code="$(curl -sS -m 30 -k "${AUTH[@]}" \
+              -H "Accept: application/json" \
+              -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              -G "${CPANEL}/json-api/cpanel" \
+              --data-urlencode "cpanel_jsonapi_apiversion=2" \
+              --data-urlencode "cpanel_jsonapi_module=ZoneEdit" \
+              --data-urlencode "cpanel_jsonapi_func=${func}" \
+              "$@" \
+              -o "$body" -w "%{http_code}")"
+            echo "ZoneEdit.${func} HTTP ${code}"
+            jq '.' "$body" > /tmp/zoneedit_last.json || { head -c 500 "$body"; exit 1; }
+          }
+
+          echo "=== Fetch zone records ==="
+          zoneedit fetchzone_records --data-urlencode "domain=${ZONE}"
+
+          echo "Apex A records:"
+          jq --arg zone "${ZONE}." '
+            [.cpanelresult.data[]?
+              | select(.type == "A")
+              | select(.name == $zone or .name == ($zone | rtrimstr(".")) or .name == "@")
+              | {name, line, record}
+            ]' /tmp/zoneedit_last.json
+
+          PRIMARY_LINE="$(jq -r --arg zone "${ZONE}." '
+            [.cpanelresult.data[]?
+              | select(.type == "A")
+              | select(.name == $zone or .name == ($zone | rtrimstr(".")) or .name == "@")
+              | (.line // .Line)
+            ][0] // empty
+          ' /tmp/zoneedit_last.json)"
+
+          if [ -z "$PRIMARY_LINE" ] || [ "$PRIMARY_LINE" = "null" ]; then
+            echo "No apex A record found; adding primary A record"
+            zoneedit add_zone_record \
+              --data-urlencode "domain=${ZONE}" \
+              --data-urlencode "name=${ZONE}." \
+              --data-urlencode "type=A" \
+              --data-urlencode "address=${CF_IP_PRIMARY}"
+          else
+            echo "Updating apex A record at line ${PRIMARY_LINE}"
+            zoneedit edit_zone_record \
+              --data-urlencode "domain=${ZONE}" \
+              --data-urlencode "line=${PRIMARY_LINE}" \
+              --data-urlencode "type=A" \
+              --data-urlencode "address=${CF_IP_PRIMARY}"
+          fi
+
+          RESULT="$(jq -r '.cpanelresult.event.result // .cpanelresult.data.result // .cpanelresult.data[0].result // empty' /tmp/zoneedit_last.json)"
+          if [ "$RESULT" != "1" ]; then
+            echo "Primary apex A record update failed:"
+            jq '.' /tmp/zoneedit_last.json
+            exit 1
+          fi
+          echo "Primary apex A record updated to ${CF_IP_PRIMARY}"
+
+          echo "=== Verify apex ==="
+          for i in 1 2 3 4 5 6 8 10 12 15; do
+            APEX_IP="$(dig +short A "${ZONE}" | head -1 | tr -d '\n')"
+            APEX_CODE="$(curl -sS -m 20 -o /dev/null -w "%{http_code}" -L "https://${ZONE}/" || true)"
+            APEX_URL="$(curl -sS -m 20 -o /dev/null -w "%{url_effective}" -L "https://${ZONE}/" || true)"
+            echo "Attempt ${i}: A=${APEX_IP:-<empty>} HTTP=${APEX_CODE} URL=${APEX_URL}"
+            if [ "$APEX_CODE" = "200" ] && echo "$APEX_URL" | grep -qi "www.${ZONE}"; then
+              echo "Apex redirect to www is working"
+              exit 0
+            fi
+            if [ "$APEX_CODE" = "200" ] && echo "$APEX_URL" | grep -qi "${ZONE}"; then
+              echo "Apex serves site (redirect rules may still propagate)"
+              exit 0
+            fi
+            sleep 20
+          done
+
+          echo "Apex DNS updated; SSL or Cloudflare custom domain may still be provisioning."

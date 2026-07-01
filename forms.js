@@ -1,5 +1,5 @@
 const CONTACT_EMAIL = 'info@meridianconsulting.co.za';
-const FORM_ENDPOINT = `https://formsubmit.co/ajax/${CONTACT_EMAIL}`;
+const FORM_ENDPOINT = '/api/enquiry';
 const THANK_YOU_URL = '/thank-you.html';
 
 function isLocalHost() {
@@ -15,32 +15,22 @@ function mailtoFallback({ name, email, matter, message, source }) {
 }
 
 async function submitEnquiry({ name, email, matter, message, source = 'contact' }) {
-  const prefix = source === 'chat' ? 'Website chat enquiry' : 'Website enquiry';
-  const origin = window.location.origin || 'https://www.meridianconsulting.co.za';
   const response = await fetch(FORM_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify({
-      name,
-      email,
-      matter,
-      message,
-      _subject: `${prefix} - ${matter}`,
-      _replyto: email,
-      _template: 'table',
-      _captcha: 'false',
-      _next: `${origin}${THANK_YOU_URL}`,
-    }),
+    body: JSON.stringify({ name, email, matter, message, source }),
   });
 
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const result = await response.json();
-  if (result.success !== 'true' && result.success !== true) {
-    throw new Error(result.message || 'Form rejected');
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.error || `HTTP ${response.status}`);
   }
+
+  const result = await response.json();
+  if (!result.ok) throw new Error(result.error || 'Form rejected');
   return result;
 }
 
