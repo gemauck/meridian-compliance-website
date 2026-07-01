@@ -1,0 +1,177 @@
+name: Force nameserver change
+
+on:
+  workflow_dispatch:
+
+jobs:
+  force:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.49.1
+          playwright install chromium --with-deps
+
+      - name: Probe cPanel and domains.co.za
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          ZONE: meridianconsulting.co.za
+          NS1: alaric.ns.cloudflare.com
+          NS2: rayne.ns.cloudflare.com
+        run: |
+          set -euo pipefail
+          CPANEL="https://${FTP_SERVER}:2083"
+          AUTH=(-u "${FTP_USERNAME}:${FTP_PASSWORD}")
+
+          echo "=== cPanel UAPI domain/nameserver probes ==="
+          for endpoint in \
+            "execute/DomainInfo/list_domains" \
+            "execute/DomainInfo/primary_domain" \
+            "execute/DNS/park" \
+            "execute/Email/list_pops"; do
+            BODY="$(mktemp)"
+            CODE="$(curl -sS -m 25 -k "${AUTH[@]}" -o "$BODY" -w "%{http_code}" \
+              "${CPANEL}/${endpoint}" 2>/dev/null || echo "000")"
+            echo "${endpoint} HTTP ${CODE}"
+            head -c 500 "$BODY" || true
+            echo ""
+          done
+
+          echo "=== cPanel API2 registrar/name server attempts ==="
+          for MODULE_FUNC in \
+            "ZoneEdit:set_nameservers" \
+            "DnsAdmin:set_nameservers" \
+            "DNS:set_nameservers" \
+            "Domain:set_nameservers" \
+            "RegDomain:set_nameservers" \
+            "NameServer:setns" \
+            "Nameserver:setns"; do
+            MODULE="${MODULE_FUNC%%:*}"
+            FUNC="${MODULE_FUNC#*:}"
+            BODY="$(mktemp)"
+            CODE="$(curl -sS -m 25 -k "${AUTH[@]}" \
+              -G "${CPANEL}/json-api/cpanel" \
+              --data-urlencode "cpanel_jsonapi_apiversion=2" \
+              --data-urlencode "cpanel_jsonapi_module=${MODULE}" \
+              --data-urlencode "cpanel_jsonapi_func=${FUNC}" \
+              --data-urlencode "domain=${ZONE}" \
+              --data-urlencode "ns1=${NS1}" \
+              --data-urlencode "ns2=${NS2}" \
+              -o "$BODY" -w "%{http_code}" 2>/dev/null || echo "000")"
+            echo "${MODULE}.${FUNC} HTTP ${CODE}"
+            head -c 400 "$BODY" || true
+            echo ""
+          done
+
+          echo "=== domains.co.za login attempts ==="
+          python3 - <<'PY'
+          import os, re, sys, time
+          from playwright.sync_api import sync_playwright
+
+          zone = os.environ["ZONE"]
+          ns1 = os.environ["NS1"]
+          ns2 = os.environ["NS2"]
+          attempts = [
+              ("gemauck@gmail.com", os.environ["FTP_PASSWORD"]),
+              ("gemauck@gmail.com", os.environ["EMAIL_PASSWORD"]),
+              (os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"]),
+              ("info@meridianconsulting.co.za", os.environ["EMAIL_PASSWORD"]),
+              ("info@meridianconsulting.co.za", os.environ["FTP_PASSWORD"]),
+          ]
+
+          def logged_in(page):
+              body = page.inner_text("body").lower()
+              return (
+                  zone in page.inner_text("body")
+                  or "manage services" in body
+                  or "my account" in body
+                  or ("log out" in body or "logout" in body)
+              ) and "login attempt failed" not in body
+
+          def change_ns(page):
+              for url in [
+                  "https://www.domains.co.za/account/domains",
+                  "https://www.domains.co.za/clientarea.php?action=domains",
+              ]:
+                  page.goto(url, wait_until="domcontentloaded", timeout=120000)
+                  time.sleep(5)
+                  if page.get_by_text(re.compile(re.escape(zone), re.I)).count():
+                      break
+              dom = page.get_by_text(re.compile(re.escape(zone), re.I))
+              if dom.count() == 0:
+                  print(page.inner_text("body")[:2000])
+                  return False
+              dom.first.click()
+              time.sleep(4)
+              for pattern in [r"nameserver", r"name server", r"change nameservers"]:
+                  link = page.get_by_text(re.compile(pattern, re.I))
+                  if link.count():
+                      link.first.click()
+                      time.sleep(3)
+                      break
+              custom = page.get_by_text(re.compile(r"custom|different", re.I))
+              if custom.count():
+                  custom.first.click()
+                  time.sleep(1)
+              fields = page.locator("input[type='text'], input:not([type='hidden'])").all()
+              visible = [f for f in fields if f.is_visible()]
+              if len(visible) < 2:
+                  print(page.inner_text("body")[:2000])
+                  return False
+              visible[0].fill(ns1)
+              visible[1].fill(ns2)
+              for label in [r"save changes", r"save", r"update", r"submit"]:
+                  btn = page.get_by_role("button", name=re.compile(label, re.I))
+                  if btn.count():
+                      btn.first.click()
+                      time.sleep(4)
+                      break
+              print("Final:", page.url)
+              print(page.inner_text("body")[:1500])
+              return True
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_default_timeout(90000)
+              ok = False
+              seen = set()
+              for user, password in attempts:
+                  if not user or not password:
+                      continue
+                  key = (user, password)
+                  if key in seen:
+                      continue
+                  seen.add(key)
+                  print(f"Login try: {user}")
+                  page.goto("https://www.domains.co.za/login", timeout=120000)
+                  time.sleep(5)
+                  if page.locator("#inputUser").count() == 0:
+                      if logged_in(page):
+                          ok = change_ns(page)
+                          break
+                      continue
+                  page.locator("#inputUser").fill(user)
+                  page.locator("#inputPass").fill(password)
+                  page.get_by_role("button", name=re.compile(r"sign in", re.I)).first.click()
+                  time.sleep(8)
+                  if page.locator("#otpPin, #otpCellPin").count() and page.locator("#otpPin, #otpCellPin").first.is_visible():
+                      print("OTP required")
+                      continue
+                  if not logged_in(page):
+                      print(page.inner_text("body")[:800])
+                      time.sleep(30)
+                      continue
+                  ok = change_ns(page)
+                  if ok:
+                      break
+              browser.close()
+              if not ok:
+                  sys.exit(1)
+          PY
+
+          echo "=== NS check ==="
+          dig +short NS "${ZONE}" || true
