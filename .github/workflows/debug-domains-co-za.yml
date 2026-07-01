@@ -1,0 +1,39 @@
+name: Debug domains.co.za login
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.49.1
+          playwright install chromium --with-deps
+
+      - name: Capture login page
+        run: |
+          python3 - <<'PY'
+          import time
+          from playwright.sync_api import sync_playwright
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.goto("https://www.domains.co.za/clientarea.php", timeout=120000)
+              time.sleep(8)
+              print("URL:", page.url)
+              print("TITLE:", page.title())
+              html = page.content()
+              print("HTML_SNIPPET:", html[:4000])
+              inputs = page.locator("input").all()
+              for i, inp in enumerate(inputs):
+                  print("INPUT", i, {
+                      "type": inp.get_attribute("type"),
+                      "name": inp.get_attribute("name"),
+                      "id": inp.get_attribute("id"),
+                      "placeholder": inp.get_attribute("placeholder"),
+                  })
+              browser.close()
+          PY
