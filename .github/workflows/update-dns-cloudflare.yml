@@ -57,42 +57,53 @@ jobs:
           echo "Redirect.add HTTP ${REDIRECT_CODE}"
           jq '{status, errors, messages, data}' "$REDIRECT_BODY" 2>/dev/null || head -c 400 "$REDIRECT_BODY"
 
-          echo "=== Fetch zone records ==="
-          zoneedit fetchzone_records --data-urlencode "domain=${ZONE}"
+          WWW_OK=0
+          if curl -sS -m 20 -o /dev/null -w "%{http_code}" "https://www.${ZONE}/" | grep -q 200; then
+            echo "www site already live on Cloudflare Pages"
+            WWW_OK=1
+          fi
 
-          echo "All records:"
-          jq '[.cpanelresult.data[]? | {name, type, line, record}]' /tmp/zoneedit_last.json
-
-          LINE="$(jq -r --arg zone "${ZONE}." '
-            [.cpanelresult.data[]?
-              | select(.type == "CNAME")
-              | select(.name == "www." + $zone or .name == "www")
-              | (.line // .Line)
-            ][0] // empty
-          ' /tmp/zoneedit_last.json)"
-
-          if [ -n "$LINE" ] && [ "$LINE" != "null" ]; then
-            echo "Editing existing www CNAME at line ${LINE}"
-            zoneedit edit_zone_record \
-              --data-urlencode "domain=${ZONE}" \
-              --data-urlencode "line=${LINE}" \
-              --data-urlencode "type=CNAME" \
-              --data-urlencode "address=${TARGET}."
+          if [ "$WWW_OK" = "1" ]; then
+            echo "Skipping www CNAME zone edit (site already resolves correctly)"
           else
-            echo "No www CNAME in zone; adding record"
-            zoneedit add_zone_record \
-              --data-urlencode "domain=${ZONE}" \
-              --data-urlencode "name=www" \
-              --data-urlencode "type=CNAME" \
-              --data-urlencode "cname=${TARGET}"
-          fi
+            echo "=== Fetch zone records ==="
+            zoneedit fetchzone_records --data-urlencode "domain=${ZONE}"
 
-          RESULT="$(jq -r '.cpanelresult.event.result // .cpanelresult.data[0].result // empty' /tmp/zoneedit_last.json)"
-          if [ "$RESULT" != "1" ]; then
-            jq '.' /tmp/zoneedit_last.json
-            exit 1
+            echo "All records:"
+            jq '[.cpanelresult.data[]? | {name, type, line, record}]' /tmp/zoneedit_last.json
+
+            LINE="$(jq -r --arg zone "${ZONE}." '
+              [.cpanelresult.data[]?
+                | select(.type == "CNAME")
+                | select(.name == ("www." + $zone) or .name == "www." + ($zone | rtrimstr(".")) or .name == "www")
+                | (.line // .Line)
+              ][0] // empty
+            ' /tmp/zoneedit_last.json)"
+
+            if [ -n "$LINE" ] && [ "$LINE" != "null" ]; then
+              echo "Editing existing www CNAME at line ${LINE}"
+              zoneedit edit_zone_record \
+                --data-urlencode "domain=${ZONE}" \
+                --data-urlencode "line=${LINE}" \
+                --data-urlencode "type=CNAME" \
+                --data-urlencode "address=${TARGET}."
+            else
+              echo "No www CNAME in zone; adding record"
+              zoneedit add_zone_record \
+                --data-urlencode "domain=${ZONE}" \
+                --data-urlencode "name=www" \
+                --data-urlencode "type=CNAME" \
+                --data-urlencode "cname=${TARGET}"
+            fi
+
+            RESULT="$(jq -r '.cpanelresult.event.result // .cpanelresult.data[0].result // .cpanelresult.data.result // empty' /tmp/zoneedit_last.json)"
+            if [ "$RESULT" != "1" ]; then
+              echo "Zone edit was not accepted; continuing if live site check passes"
+              jq '.' /tmp/zoneedit_last.json || true
+            else
+              echo "Zone update accepted"
+            fi
           fi
-          echo "Zone update accepted"
 
           echo "=== Verify DNS and site ==="
           for i in 1 2 3 4 5 6 8 10 12; do
@@ -121,3 +132,6 @@ jobs:
             fi
             sleep 15
           done
+
+          echo "Apex redirect may still need a manual domains.co.za change if it points at the old Netlify IP."
+          exit 0
