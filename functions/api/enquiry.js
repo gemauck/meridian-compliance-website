@@ -27,6 +27,9 @@ export async function onRequestPost(context) {
 
   const name = String(payload.name || '').trim();
   const email = String(payload.email || '').trim();
+  const company = String(payload.company || '').trim();
+  const phone = String(payload.phone || '').trim();
+  const urgency = String(payload.urgency || '').trim();
   const matter = String(payload.matter || '').trim();
   const message = String(payload.message || '').trim();
   const source = String(payload.source || 'contact').trim();
@@ -38,6 +41,12 @@ export async function onRequestPost(context) {
   const prefix = source === 'chat' ? 'Website chat enquiry' : 'Website enquiry';
   const subject = `${prefix} - ${matter}`;
   const origin = new URL(context.request.url).origin;
+  const detailLines = [
+    message,
+    company ? `Company: ${company}` : '',
+    phone ? `Phone: ${phone}` : '',
+    urgency ? `Urgency: ${urgency}` : '',
+  ].filter(Boolean).join('\n\n');
 
   const response = await fetch(`https://formsubmit.co/ajax/${CONTACT_EMAIL}`, {
     method: 'POST',
@@ -48,8 +57,11 @@ export async function onRequestPost(context) {
     body: JSON.stringify({
       name,
       email,
+      company,
+      phone,
+      urgency,
       matter,
-      message,
+      message: detailLines,
       _subject: subject,
       _replyto: email,
       _template: 'table',

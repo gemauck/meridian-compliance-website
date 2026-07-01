@@ -10,13 +10,22 @@ Website: https://www.meridianconsulting.co.za/
 ## Services
 
 - Diesel refund compliance: https://www.meridianconsulting.co.za/diesel-refund-compliance.html
+- Fuel systems and controls: https://www.meridianconsulting.co.za/fuel-systems-controls.html
+- Operational risk reviews: https://www.meridianconsulting.co.za/operational-risk-reviews.html
 - SARS dispute support: https://www.meridianconsulting.co.za/sars-dispute-support.html
 - Customs and excise advisory: https://www.meridianconsulting.co.za/customs-excise-advisory.html
 - Data analytics advisory: https://www.meridianconsulting.co.za/data-analytics-advisory.html
 - Diesel refund legislation and cases: https://www.meridianconsulting.co.za/diesel-refund-resources.html
 
+## Downloads
+
+- SARS objection evidence checklist: https://www.meridianconsulting.co.za/downloads/sars-objection-evidence-checklist.html
+
 ## Insights
 
+- Diesel refund logbook requirements 2026: https://www.meridianconsulting.co.za/insights/diesel-refund-logbook-requirements-2026.html
+- VAT to platform migration 2026: https://www.meridianconsulting.co.za/insights/diesel-refund-vat-to-platform-migration-2026.html
+- What triggers a diesel refund audit 2026: https://www.meridianconsulting.co.za/insights/what-triggers-diesel-refund-audit-2026.html
 - SARS new diesel refund platform 2026: https://www.meridianconsulting.co.za/insights/sars-new-diesel-refund-platform-2026.html
 - Diesel refund audit evidence gaps: https://www.meridianconsulting.co.za/insights/diesel-refund-audit-evidence-gaps.html
 - SARS objection evidence checklist: https://www.meridianconsulting.co.za/insights/sars-objection-evidence-checklist.html
@@ -24,4 +33,4 @@ Website: https://www.meridianconsulting.co.za/
 
 ## Topics
 
-SARS disputes, diesel refund compliance, diesel refund audits, customs and excise, mining fuel compliance, operational controls, evidence-led tax advisory, South Africa.
+SARS disputes, diesel refund compliance, diesel refund audits, diesel refund logbooks, customs and excise, mining fuel compliance, operational controls, evidence-led tax advisory, South Africa.

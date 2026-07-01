@@ -201,7 +201,16 @@ if (contactForm) {
             <p class="chat-contact-label">Send an enquiry</p>
             <label><span>Name</span><input type="text" name="name" required autocomplete="name" /></label>
             <label><span>Email</span><input type="email" name="email" required autocomplete="email" /></label>
+            <label><span>Company</span><input type="text" name="company" autocomplete="organization" /></label>
+            <label><span>Phone</span><input type="tel" name="phone" autocomplete="tel" /></label>
             <label><span>Matter type</span><select name="matter" required data-chat-matter>${matterOptionsHtml()}</select></label>
+            <label><span>Urgency</span><select name="urgency" data-chat-urgency>
+              <option value="">Select urgency</option>
+              <option value="Routine enquiry">Routine enquiry</option>
+              <option value="Assessment / audit received">Assessment / audit received</option>
+              <option value="Objection deadline within 30 days">Objection deadline within 30 days</option>
+              <option value="Urgent — deadline within 7 days">Urgent — deadline within 7 days</option>
+            </select></label>
             <label><span>Your message</span><textarea name="message" rows="3" required placeholder="Briefly describe your matter…"></textarea></label>
             <div class="chat-contact-actions">
               <button class="button button-primary chat-send-enquiry" type="submit" data-track="chat-form-submit">Send enquiry</button>
@@ -318,15 +327,18 @@ if (contactForm) {
 
   function showContactForm(prefillMessage) {
     contactForm.hidden = false;
+    panel.classList.add('is-enquiry');
     if (prefillMessage) {
       const messageField = contactForm.querySelector('[name="message"]');
       if (messageField && !messageField.value.trim()) messageField.value = prefillMessage;
     }
     scrollToBottom();
+    contactForm.querySelector('[name="name"]')?.focus({ preventScroll: true });
   }
 
   function hideContactForm() {
     contactForm.hidden = true;
+    panel.classList.remove('is-enquiry');
     contactForm.reset();
     const matterField = contactForm.querySelector('[data-chat-matter]');
     if (matterField) matterField.innerHTML = matterOptionsHtml();
@@ -399,6 +411,9 @@ if (contactForm) {
         mailtoFallback({
           name: String(data.get('name') || '').trim(),
           email: String(data.get('email') || '').trim(),
+          company: String(data.get('company') || '').trim(),
+          phone: String(data.get('phone') || '').trim(),
+          urgency: String(data.get('urgency') || '').trim(),
           matter: String(data.get('matter') || '').trim(),
           message: String(data.get('message') || '').trim(),
           source: 'chat',

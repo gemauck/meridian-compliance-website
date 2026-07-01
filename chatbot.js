@@ -283,6 +283,7 @@
 
   function showContactForm(prefillMessage) {
     contactForm.hidden = false;
+    panel.classList.add('is-enquiry');
     if (prefillMessage) {
       const messageField = contactForm.querySelector('[name="message"]');
       if (messageField && !messageField.value.trim()) {
@@ -290,10 +291,12 @@
       }
     }
     scrollToBottom();
+    contactForm.querySelector('[name="name"]')?.focus({ preventScroll: true });
   }
 
   function hideContactForm() {
     contactForm.hidden = true;
+    panel.classList.remove('is-enquiry');
     contactForm.reset();
     const matterField = contactForm.querySelector('[data-chat-matter]');
     if (matterField) matterField.innerHTML = matterOptionsHtml();
