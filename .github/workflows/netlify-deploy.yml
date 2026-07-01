@@ -10,7 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Netlify build
-        run: curl -fsS -X POST -d '{}' "${{ secrets.NETLIFY_BUILD_HOOK }}"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          SITE_ID=0706de37-1a8b-44f1-9949-52c6f0dae485
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${NETLIFY_AUTH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.netlify.com/api/v1/sites/${SITE_ID}/builds" \
+            -d '{}'
 
       - name: Wait for deploy to go live
         run: |
