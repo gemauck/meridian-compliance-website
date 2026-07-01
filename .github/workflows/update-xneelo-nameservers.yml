@@ -14,8 +14,8 @@ jobs:
 
       - name: Change nameservers in xneelo Control Panel
         env:
-          XNEELO_EMAIL: ${{ secrets.FTP_USERNAME }}
-          XNEELO_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          XNEELO_EMAIL: gemauck@gmail.com
+          XNEELO_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           ZONE: meridianconsulting.co.za
           NS1: alaric.ns.cloudflare.com
           NS2: rayne.ns.cloudflare.com
@@ -41,7 +41,11 @@ jobs:
 
               print("Opening xneelo Control Panel login...")
               page.goto("https://create.xneelo.com/", wait_until="domcontentloaded")
-              time.sleep(5)
+              time.sleep(12)
+
+              if "checking your browser" in page.inner_text("body").lower():
+                  print("Waiting for Cloudflare challenge...")
+                  time.sleep(20)
 
               if "identity.xneelo.com" in page.url or page.locator("input[type='email'], input[name='username']").count():
                   print("Filling login form...")
