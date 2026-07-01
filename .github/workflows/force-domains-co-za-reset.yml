@@ -67,11 +67,12 @@ jobs:
                               else:
                                   body = msg.get_payload(decode=True).decode(errors="replace")
                               blob = subject + "\n" + body
-                              if "domains.co.za" in blob.lower() or "password" in blob.lower():
+                              if "domains" in blob.lower() or "password" in blob.lower() or "reset" in blob.lower():
+                                  print("Mail:", subject[:80])
                                   links = re.findall(r"https?://[^\s\"'<>]+", blob)
                                   for link in links:
-                                      if "domains.co.za" in link and any(x in link.lower() for x in ["reset", "password", "token", "verify"]):
-                                          print("Found reset link in mail:", link[:120])
+                                      if "domains.co.za" in link:
+                                          print("Found domains.co.za link:", link[:160])
                                           return link
                   except Exception as e:
                       print(f"IMAP {host} failed: {e}")
