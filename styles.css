@@ -62,8 +62,18 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 700; overflow-wrap: 
 .nav-links a { border-radius: 999px; padding: 6px 10px; transition: color .2s ease, background .2s ease; }
 .nav-links a:hover { color: var(--white); }
 .nav-links a.is-active { color: var(--white); background: rgba(255,255,255,.1); }
-.nav-cta { padding: 10px 16px; border: 1px solid rgba(255,255,255,.2); }
-.nav-cta.is-active { background: rgba(215,181,109,.18); border-color: rgba(215,181,109,.35); }
+.nav-cta {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(135deg, var(--gold), var(--gold-2));
+  color: var(--ink);
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(215, 181, 109, .22);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.nav-cta:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(215, 181, 109, .3); }
+.nav-cta.is-active { box-shadow: 0 0 0 2px rgba(255, 255, 255, .28); }
 .nav-toggle { display: none; background: none; border: 0; padding: 8px; border-radius: 8px; }
 .nav-toggle span { display: block; width: 24px; height: 2px; background: white; margin: 5px; }
 
