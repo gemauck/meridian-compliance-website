@@ -122,6 +122,8 @@ jobs:
           RESULT="$(jq -r '.cpanelresult.event.result // .cpanelresult.data.result // .cpanelresult.data[0].result // empty' /tmp/zoneedit_last.json)"
           if [ "$RESULT" != "1" ]; then
             echo "Apex A record update was not accepted"
+            echo "Manual change required at domains.co.za / Xneelo DNS:"
+            echo "  meridianconsulting.co.za A 75.2.60.5 -> ${HOST_IP}"
             exit 1
           fi
 
