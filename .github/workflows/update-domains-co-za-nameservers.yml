@@ -35,52 +35,75 @@ jobs:
               ("info@meridianconsulting.co.za", os.environ.get("LOGIN_PASSWORD", "")),
           ]
 
+          def logged_in(page):
+              body = page.inner_text("body").lower()
+              if zone in page.inner_text("body"):
+                  return True
+              if "manage services" in body or "my account" in body or "log out" in body or "logout" in body:
+                  return True
+              return page.locator("#inputUser").count() == 0 and "sign in" not in body
+
           def try_login(page, user, password):
               if not user or not password:
                   return False
               print(f"Trying login as: {user}")
-              page.goto("https://www.domains.co.za/clientarea.php", wait_until="domcontentloaded", timeout=120000)
-              time.sleep(8)
-              body = page.inner_text("body").lower()
-              if "checking your browser" in body or "just a moment" in body:
-                  print("Waiting for challenge...")
-                  time.sleep(25)
-              if page.locator("input[name='username'], input[type='email'], #inputEmail").count() == 0:
-                  if "logout" in body or zone in page.inner_text("body"):
-                      print("Already logged in")
-                      return True
+              page.goto("https://www.domains.co.za/login", wait_until="domcontentloaded", timeout=120000)
+              time.sleep(6)
+              if logged_in(page):
+                  print("Already logged in")
+                  return True
+              if page.locator("#inputUser").count() == 0:
                   print("No login form:", page.url)
                   print(page.inner_text("body")[:1200])
                   return False
-              user_input = page.locator("input[name='username'], input[type='email'], #inputEmail").first
-              pass_input = page.locator("input[name='password'], input[type='password'], #inputPassword").first
-              user_input.fill(user)
-              pass_input.fill(password)
-              submit = page.locator("input[type='submit'], button[type='submit']").filter(has_text=re.compile(r"login|sign in", re.I))
-              if submit.count() == 0:
-                  submit = page.locator("input[type='submit'], button[type='submit']").first
-              submit.click()
-              page.wait_for_load_state("domcontentloaded")
-              time.sleep(6)
+              page.locator("#inputUser").fill(user)
+              page.locator("#inputPass").fill(password)
+              sign_in = page.get_by_role("button", name=re.compile(r"sign in", re.I))
+              if sign_in.count() == 0:
+                  sign_in = page.locator("button, a, input").filter(has_text=re.compile(r"^sign in$", re.I))
+              sign_in.first.click()
+              time.sleep(8)
               body = page.inner_text("body").lower()
-              if "incorrect" in body or "invalid" in body or "login" in body and "password" in body:
-                  print("Login failed for", user)
+              if page.locator("#otpPin, #otpCellPin, #authCode").count() and page.locator("#otpPin, #otpCellPin, #authCode").first.is_visible():
+                  print("2FA/OTP required for", user)
                   return False
+              if not logged_in(page):
+                  print("Login failed for", user)
+                  print(page.inner_text("body")[:1200])
+                  return False
+              print("Login OK:", page.url)
               return True
 
           def change_nameservers(page):
+              for label in [r"manage services", r"domains"]:
+                  nav = page.get_by_text(re.compile(label, re.I))
+                  if nav.count():
+                      nav.first.click()
+                      time.sleep(2)
               targets = [
-                  f"https://www.domains.co.za/clientarea.php?action=domains",
-                  f"https://www.domains.co.za/clientarea.php?action=domaindetails&id=0",
+                  "https://www.domains.co.za/account/domains",
+                  "https://www.domains.co.za/clientarea.php?action=domains",
+                  "https://www.domains.co.za/account",
               ]
               for url in targets:
                   print("Opening", url)
-                  page.goto(url, wait_until="domcontentloaded", timeout=120000)
+                  try:
+                      page.goto(url, wait_until="domcontentloaded", timeout=120000)
+                  except Exception as e:
+                      print("Navigation error:", e)
+                      continue
                   time.sleep(5)
                   if page.get_by_text(re.compile(re.escape(zone), re.I)).count():
                       break
 
               domain = page.get_by_role("link", name=re.compile(re.escape(zone), re.I))
+              if domain.count() == 0:
+                  domain = page.get_by_text(re.compile(re.escape(zone), re.I))
+              if domain.count() == 0:
+                  manage = page.get_by_role("button", name=re.compile(r"manage", re.I))
+                  if manage.count():
+                      manage.first.click()
+                      time.sleep(3)
               if domain.count() == 0:
                   domain = page.get_by_text(re.compile(re.escape(zone), re.I))
               if domain.count() == 0:
