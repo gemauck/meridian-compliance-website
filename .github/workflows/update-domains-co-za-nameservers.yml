@@ -1,0 +1,156 @@
+name: Update domains.co.za nameservers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  domains-ns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.49.1
+          playwright install chromium --with-deps
+
+      - name: Change nameservers in domains.co.za Client Portal
+        env:
+          LOGIN_EMAIL: gemauck@gmail.com
+          LOGIN_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          ALT_USERNAME: ${{ secrets.FTP_USERNAME }}
+          ALT_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ZONE: meridianconsulting.co.za
+          NS1: alaric.ns.cloudflare.com
+          NS2: rayne.ns.cloudflare.com
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, time
+          from playwright.sync_api import sync_playwright
+
+          zone = os.environ["ZONE"]
+          ns1 = os.environ["NS1"]
+          ns2 = os.environ["NS2"]
+          attempts = [
+              (os.environ.get("LOGIN_EMAIL", ""), os.environ.get("LOGIN_PASSWORD", "")),
+              (os.environ.get("ALT_USERNAME", ""), os.environ.get("ALT_PASSWORD", "")),
+              ("info@meridianconsulting.co.za", os.environ.get("LOGIN_PASSWORD", "")),
+          ]
+
+          def try_login(page, user, password):
+              if not user or not password:
+                  return False
+              print(f"Trying login as: {user}")
+              page.goto("https://www.domains.co.za/clientarea.php", wait_until="domcontentloaded", timeout=120000)
+              time.sleep(8)
+              body = page.inner_text("body").lower()
+              if "checking your browser" in body or "just a moment" in body:
+                  print("Waiting for challenge...")
+                  time.sleep(25)
+              if page.locator("input[name='username'], input[type='email'], #inputEmail").count() == 0:
+                  if "logout" in body or zone in page.inner_text("body"):
+                      print("Already logged in")
+                      return True
+                  print("No login form:", page.url)
+                  print(page.inner_text("body")[:1200])
+                  return False
+              user_input = page.locator("input[name='username'], input[type='email'], #inputEmail").first
+              pass_input = page.locator("input[name='password'], input[type='password'], #inputPassword").first
+              user_input.fill(user)
+              pass_input.fill(password)
+              submit = page.locator("input[type='submit'], button[type='submit']").filter(has_text=re.compile(r"login|sign in", re.I))
+              if submit.count() == 0:
+                  submit = page.locator("input[type='submit'], button[type='submit']").first
+              submit.click()
+              page.wait_for_load_state("domcontentloaded")
+              time.sleep(6)
+              body = page.inner_text("body").lower()
+              if "incorrect" in body or "invalid" in body or "login" in body and "password" in body:
+                  print("Login failed for", user)
+                  return False
+              return True
+
+          def change_nameservers(page):
+              targets = [
+                  f"https://www.domains.co.za/clientarea.php?action=domains",
+                  f"https://www.domains.co.za/clientarea.php?action=domaindetails&id=0",
+              ]
+              for url in targets:
+                  print("Opening", url)
+                  page.goto(url, wait_until="domcontentloaded", timeout=120000)
+                  time.sleep(5)
+                  if page.get_by_text(re.compile(re.escape(zone), re.I)).count():
+                      break
+
+              domain = page.get_by_role("link", name=re.compile(re.escape(zone), re.I))
+              if domain.count() == 0:
+                  domain = page.get_by_text(re.compile(re.escape(zone), re.I))
+              if domain.count() == 0:
+                  print("Domain not found in portal")
+                  print(page.inner_text("body")[:2500])
+                  return False
+              domain.first.click()
+              time.sleep(4)
+
+              for pattern in [r"nameserver", r"name server", r"manage nameservers", r"change nameservers"]:
+                  link = page.get_by_role("link", name=re.compile(pattern, re.I))
+                  if link.count() == 0:
+                      link = page.get_by_text(re.compile(pattern, re.I))
+                  if link.count():
+                      link.first.click()
+                      time.sleep(3)
+                      break
+
+              custom = page.get_by_text(re.compile(r"custom|different|use custom", re.I))
+              if custom.count():
+                  custom.first.click()
+                  time.sleep(1)
+
+              inputs = page.locator("input[type='text'], input:not([type])").all()
+              ns_fields = []
+              for inp in inputs:
+                  name = (inp.get_attribute("name") or "").lower()
+                  id_ = (inp.get_attribute("id") or "").lower()
+                  if "ns" in name or "nameserver" in name or "ns" in id_:
+                      ns_fields.append(inp)
+              if len(ns_fields) < 2:
+                  ns_fields = [i for i in inputs if i.is_visible()][:4]
+
+              if len(ns_fields) < 2:
+                  print("Could not find nameserver fields")
+                  print(page.inner_text("body")[:2500])
+                  return False
+
+              ns_fields[0].fill(ns1)
+              ns_fields[1].fill(ns2)
+
+              for label in [r"save changes", r"save", r"update", r"change nameservers", r"submit"]:
+                  btn = page.get_by_role("button", name=re.compile(label, re.I))
+                  if btn.count() == 0:
+                      btn = page.locator("input[type='submit']").filter(has_text=re.compile(label, re.I))
+                  if btn.count():
+                      btn.first.click()
+                      time.sleep(4)
+                      break
+
+              print("Done. URL:", page.url)
+              print(page.inner_text("body")[:2000])
+              return True
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_default_timeout(90000)
+              ok = False
+              for user, password in attempts:
+                  if try_login(page, user, password):
+                      if change_nameservers(page):
+                          ok = True
+                          break
+                      print("Logged in but nameserver change failed; trying next credential...")
+                  time.sleep(2)
+              browser.close()
+              if not ok:
+                  sys.exit(1)
+          PY
+
+          echo "=== Verify NS propagation (may take time) ==="
+          dig +short NS "${ZONE}" || true
