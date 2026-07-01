@@ -9,9 +9,11 @@ const ANALYTICS_DOMAIN = 'www.meridianconsulting.co.za';
 
 if (year) year.textContent = new Date().getFullYear();
 
+const hasDarkHero = Boolean(document.querySelector('.hero.section-dark'));
+
 function updateHeader() {
   if (!header) return;
-  header.classList.toggle('is-scrolled', window.scrollY > 20);
+  header.classList.toggle('is-scrolled', !hasDarkHero || window.scrollY > 20);
 }
 updateHeader();
 window.addEventListener('scroll', updateHeader, { passive: true });
