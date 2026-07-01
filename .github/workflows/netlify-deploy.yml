@@ -1,8 +1,8 @@
 name: Deploy to Netlify
 
+# Site now deploys via Cloudflare Pages Git integration.
+# Keep this workflow for manual Netlify fallback only.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
