@@ -23,11 +23,19 @@ jobs:
           API="https://api.cloudflare.com/client/v4"
 
           echo "=== Get OAuth access token (broader permissions) ==="
-          RESPONSE="$(curl -fsS -X POST "https://dash.cloudflare.com/oauth2/token" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            --data "grant_type=refresh_token&refresh_token=${CLOUDFLARE_REFRESH_TOKEN}&client_id=54d11594-84e4-41aa-b438-e81b8fa78ee7")"
-          OAUTH_TOKEN="$(python3 -c "import json, os; print(json.loads(os.environ['RESPONSE'])['access_token'])" RESPONSE="$RESPONSE")"
-          echo "OAuth token acquired."
+          OAUTH_TOKEN=""
+          if [ -n "${CLOUDFLARE_REFRESH_TOKEN:-}" ]; then
+            OAUTH_BODY="$(mktemp)"
+            OAUTH_CODE="$(curl -sS -o "$OAUTH_BODY" -w "%{http_code}" -X POST "https://dash.cloudflare.com/oauth2/token" \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              --data "grant_type=refresh_token&refresh_token=${CLOUDFLARE_REFRESH_TOKEN}&client_id=54d11594-84e4-41aa-b438-e81b8fa78ee7" || true)"
+            if [ "$OAUTH_CODE" = "200" ]; then
+              OAUTH_TOKEN="$(jq -r '.access_token // empty' "$OAUTH_BODY")"
+              [ -n "$OAUTH_TOKEN" ] && echo "OAuth token acquired."
+            else
+              echo "OAuth refresh unavailable (HTTP ${OAUTH_CODE}); using API token."
+            fi
+          fi
 
           auth_with() {
             AUTH=(-H "Authorization: Bearer $1" -H "Content-Type: application/json")
@@ -55,14 +63,15 @@ jobs:
             [ -n "$ZONE_ID" ]
           }
 
-          TOKEN="$OAUTH_TOKEN"
-          if ! try_zone_ops "$TOKEN"; then
-            echo "OAuth token could not create zone; trying API token."
+          TOKEN=""
+          if [ -n "$OAUTH_TOKEN" ] && try_zone_ops "$OAUTH_TOKEN"; then
+            TOKEN="$OAUTH_TOKEN"
+          elif try_zone_ops "$CLOUDFLARE_API_TOKEN"; then
             TOKEN="$CLOUDFLARE_API_TOKEN"
-            try_zone_ops "$TOKEN" || {
-              echo "Could not create or find zone with either token."
-              exit 1
-            }
+          else
+            echo "Could not create or find zone with available tokens."
+            echo "Add meridianconsulting.co.za in the Cloudflare dashboard, then re-run."
+            exit 1
           fi
 
           auth_with "$TOKEN"
