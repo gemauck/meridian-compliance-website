@@ -32,3 +32,32 @@ jobs:
           ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SITEMAP', safe=''))")
           curl -sS "https://www.bing.com/ping?sitemap=${ENCODED}" || true
           curl -sS "https://webmaster.yandex.com/ping?sitemap=${ENCODED}" || true
+
+      - name: Submit URLs to IndexNow
+        if: success()
+        run: |
+          curl -sS -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "host": "www.meridianconsulting.co.za",
+              "key": "bb991d6cd7d319cfa06a160c20c97671",
+              "keyLocation": "https://www.meridianconsulting.co.za/bb991d6cd7d319cfa06a160c20c97671.txt",
+              "urlList": [
+                "https://www.meridianconsulting.co.za/",
+                "https://www.meridianconsulting.co.za/diesel-refund-compliance.html",
+                "https://www.meridianconsulting.co.za/diesel-refund-resources.html",
+                "https://www.meridianconsulting.co.za/sars-dispute-support.html",
+                "https://www.meridianconsulting.co.za/customs-excise-advisory.html",
+                "https://www.meridianconsulting.co.za/data-analytics-advisory.html",
+                "https://www.meridianconsulting.co.za/fuel-systems-controls.html",
+                "https://www.meridianconsulting.co.za/operational-risk-reviews.html",
+                "https://www.meridianconsulting.co.za/insights/",
+                "https://www.meridianconsulting.co.za/insights/sars-new-diesel-refund-platform-2026.html",
+                "https://www.meridianconsulting.co.za/insights/sars-objection-evidence-checklist.html",
+                "https://www.meridianconsulting.co.za/insights/diesel-refund-audit-evidence-gaps.html",
+                "https://www.meridianconsulting.co.za/insights/diesel-refund-logbook-requirements-2026.html",
+                "https://www.meridianconsulting.co.za/insights/what-triggers-diesel-refund-audit-2026.html",
+                "https://www.meridianconsulting.co.za/insights/diesel-refund-vat-to-platform-migration-2026.html"
+              ]
+            }'
+          echo ""

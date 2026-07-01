@@ -1,35 +1,29 @@
 # Meridian Compliance & Advisory Website
 
-Static website for Meridian Compliance & Advisory, tax, SARS, diesel refund, customs/excise, and operational compliance advisory.
+Static website for Meridian Compliance & Advisory — tax, SARS, diesel refund, customs/excise, and operational compliance advisory.
 
-## Hosting: Netlify
+## Hosting: Cloudflare Pages
 
 Live site: **https://www.meridianconsulting.co.za**
 
 ### Deploy
 
-1. Connect this GitHub repo at [app.netlify.com](https://app.netlify.com) → **Add new site** → **Import an existing project**
-2. Build settings: **publish directory** = `.` (root), no build command
-3. Push to `main` → Netlify deploys automatically
+Push to `main` → GitHub Actions deploys to Cloudflare Pages (`meridian-compliance-website`).
 
 Form submissions are sent via `/api/enquiry` (Cloudflare Pages function) or FormSubmit. On localhost, forms use a `mailto:` fallback. Success redirect: `/thank-you.html`.
 
-### Custom domain DNS (domains.co.za)
+### Custom domain DNS
 
-Keep domain registration at domains.co.za. In Netlify → **Domain management**, add `meridianconsulting.co.za` and `www.meridianconsulting.co.za`.
+**Current setup (working):**
 
-**Action checklist — do these in order:**
+| Record | Type | Value |
+|--------|------|-------|
+| `www` | CNAME | `meridian-compliance-website.pages.dev` |
+| `@` (apex) | A | Hosting IP (cPanel redirect to www) **or** Cloudflare nameservers |
 
-| Step | Where | Action |
-|------|-------|--------|
-| 1 | domains.co.za DNS | Set `@` A record → `75.2.60.5` (Netlify load balancer) |
-| 2 | domains.co.za DNS | Set `www` CNAME → `meridian-compliance.netlify.app` |
-| 3 | domains.co.za DNS | Remove old A/AAAA records for `@` (dead GitHub Pages / old host IPs) |
-| 4 | Netlify | Domain management → set `www.meridianconsulting.co.za` as **primary domain** |
-| 5 | Netlify | Enable HTTPS; confirm apex redirects to www |
-| 6 | Browser | Test `https://meridianconsulting.co.za` and `https://www.meridianconsulting.co.za` both load |
+**Recommended long-term fix:** Move DNS to Cloudflare, then in **Pages → meridian-compliance-website → Custom domains** add both `meridianconsulting.co.za` and `www.meridianconsulting.co.za`. Cloudflare handles apex via CNAME flattening and can 301 apex → www.
 
-If domains.co.za supports ALIAS/ANAME, you can point `@` to `apex-loadbalancer.netlify.com` instead of the A record.
+**If apex is broken** (non-www times out): run the **Fix apex domain redirect** workflow in GitHub Actions. It configures Cloudflare Pages domains (when the zone is on Cloudflare) and falls back to cPanel redirect + FTP upload.
 
 ### Google Search Console
 
@@ -41,38 +35,23 @@ If domains.co.za supports ALIAS/ANAME, you can point `@` to `apex-loadbalancer.n
    - **DNS TXT** (recommended): add the TXT record at domains.co.za, or
    - **HTML tag**: already present in `index.html` (`google-site-verification`)
 4. Submit sitemap: `https://www.meridianconsulting.co.za/sitemap.xml`
-5. **URL inspection** → **Request indexing** for:
-   - Homepage
-   - `diesel-refund-compliance.html`
-   - `fuel-systems-controls.html`
-   - `operational-risk-reviews.html`
-   - `sars-dispute-support.html`
-   - `insights/sars-new-diesel-refund-platform-2026.html`
-   - `downloads/sars-objection-evidence-checklist.html`
+5. **URL inspection** → **Request indexing** for homepage and key service pages after deploys
 
 ### Google Business Profile (GBP)
 
-**Action checklist:**
-
 1. Go to [Google Business Profile](https://business.google.com)
 2. Create or claim a profile for **Meridian Compliance & Advisory**
-3. Category: e.g. *Tax consultant*, *Business management consultant*, or *Legal services* (pick closest fit)
-4. Add website: `https://www.meridianconsulting.co.za`
-5. Add email: `info@meridianconsulting.co.za`
-6. Service area: South Africa (or specific provinces/cities served)
-7. Add services matching site pages (diesel refund, SARS disputes, customs/excise, etc.)
-8. Upload logo (`favicon.svg` or `og-image.png`) and a professional photo
-9. Request verification (postcard, phone or email — Google decides)
-10. After verification: add a short description matching site positioning; post the 2026 diesel refund platform article as an update
-
-GBP helps branded searches (“Meridian Compliance Advisory”) and local trust signals. It does not replace SEO for “diesel refund consultant” type queries.
+3. Add website: `https://www.meridianconsulting.co.za`
+4. Add email: `info@meridianconsulting.co.za`
+5. Service area: South Africa
 
 ### SEO — already in place
 
 - `robots.txt` allows crawlers and links the sitemap
 - `sitemap.xml` lists all public pages (15 URLs)
-- Canonical URLs, Open Graph (`og-image.png`), and structured data
+- Canonical URLs, Open Graph (`og-image.png`), and structured data (including founder/Person schema)
 - `llms.txt` for AI discovery
+- IndexNow key at `bb991d6cd7d319cfa06a160c20c97671.txt` — submitted on each deploy
 - `thank-you.html` is `noindex`
 - Plausible analytics in `script.js` for `www.meridianconsulting.co.za`
 
@@ -89,4 +68,4 @@ The enquiry form collects: name, email, company, phone (optional), matter type, 
 - `insights/` — articles
 - `images/hero-operations.jpg`, `og-image.png` — hero and social preview images
 - `sitemap.xml`, `robots.txt`, `llms.txt`
-- `netlify.toml`, `functions/api/enquiry.js`
+- `functions/api/enquiry.js` — Cloudflare Pages form handler

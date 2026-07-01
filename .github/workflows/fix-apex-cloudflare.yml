@@ -1,0 +1,222 @@
+name: Fix apex domain redirect
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-apex-cloudflare.yml'
+
+jobs:
+  fix-apex:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Cloudflare Pages domains and apex redirect
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ZONE: meridianconsulting.co.za
+          PROJECT: meridian-compliance-website
+          WWW_URL: https://www.meridianconsulting.co.za/
+        run: |
+          set -euo pipefail
+          API="https://api.cloudflare.com/client/v4"
+          AUTH=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json")
+
+          echo "=== Check Cloudflare zone ==="
+          ZONE_BODY="$(mktemp)"
+          curl -sS "${AUTH[@]}" "${API}/zones?name=${ZONE}" -o "$ZONE_BODY"
+          ZONE_ID="$(jq -r '.result[0].id // empty' "$ZONE_BODY")"
+          ZONE_STATUS="$(jq -r '.result[0].status // empty' "$ZONE_BODY")"
+          echo "Zone ID: ${ZONE_ID:-<none>} status: ${ZONE_STATUS:-<none>}"
+
+          if [ -n "$ZONE_ID" ] && [ "$ZONE_STATUS" = "active" ]; then
+            echo "=== Add apex custom domain to Cloudflare Pages ==="
+            for DOMAIN in "${ZONE}" "www.${ZONE}"; do
+              ADD_BODY="$(mktemp)"
+              CODE="$(curl -sS -o "$ADD_BODY" -w "%{http_code}" -X POST \
+                "${AUTH[@]}" \
+                "${API}/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PROJECT}/domains" \
+                -d "{\"name\":\"${DOMAIN}\"}")"
+              echo "Add ${DOMAIN}: HTTP ${CODE}"
+              jq '{success, errors, messages}' "$ADD_BODY" 2>/dev/null || cat "$ADD_BODY"
+            done
+
+            echo "=== Create apex to www redirect rule ==="
+            RULE_BODY="$(mktemp)"
+            curl -sS "${AUTH[@]}" \
+              "${API}/zones/${ZONE_ID}/rulesets/phases/http_request_dynamic_redirect/entrypoint" \
+              -o "$RULE_BODY" || true
+            EXISTING_ID="$(jq -r '.result.id // empty' "$RULE_BODY")"
+
+            RULE_PAYLOAD="$(jq -n \
+              --arg zone "$ZONE" \
+              '{
+                rules: [{
+                  expression: "(http.host eq \"" + $zone + "\")",
+                  description: "Redirect apex to www",
+                  action: "redirect",
+                  action_parameters: {
+                    from_value: {
+                      status_code: 301,
+                      target_url: {
+                        expression: "concat(\"https://www." + $zone + "\", http.request.uri.path)"
+                      },
+                      preserve_query_string: true
+                    }
+                  }
+                }]
+              }')"
+
+            if [ -n "$EXISTING_ID" ]; then
+              curl -sS -X PUT "${AUTH[@]}" \
+                "${API}/zones/${ZONE_ID}/rulesets/${EXISTING_ID}" \
+                -d "$RULE_PAYLOAD" | jq '{success, errors}'
+            else
+              curl -sS -X POST "${AUTH[@]}" \
+                "${API}/zones/${ZONE_ID}/rulesets" \
+                -d "$(jq -n --argjson rules "$RULE_PAYLOAD" \
+                  '{name: "Apex to www", kind: "zone", phase: "http_request_dynamic_redirect", rules: $rules.rules}')" \
+                | jq '{success, errors}'
+            fi
+          else
+            echo "Zone not active on Cloudflare; using cPanel redirect fallback."
+          fi
+
+          echo "=== cPanel apex redirect fallback ==="
+          CPANEL="https://${FTP_SERVER}:2083"
+          CPANEL_AUTH=(-u "${FTP_USERNAME}:${FTP_PASSWORD}")
+          REDIRECT_BODY="$(mktemp)"
+          REDIRECT_CODE="$(curl -sS -m 30 -k "${CPANEL_AUTH[@]}" \
+            -G "${CPANEL}/execute/Redirect/add" \
+            --data-urlencode "domain=${ZONE}" \
+            --data-urlencode "src=/" \
+            --data-urlencode "redirect=${WWW_URL}" \
+            --data-urlencode "type=permanent" \
+            --data-urlencode "redirect_wildcard=1" \
+            -o "$REDIRECT_BODY" -w "%{http_code}")"
+          echo "cPanel Redirect.add HTTP ${REDIRECT_CODE}"
+          jq '{status, errors, messages}' "$REDIRECT_BODY" 2>/dev/null || head -c 400 "$REDIRECT_BODY"
+
+          python3 - <<'PY'
+          import os
+          from ftplib import FTP_TLS
+
+          server = os.environ["FTP_SERVER"]
+          user = os.environ["FTP_USERNAME"]
+          password = os.environ["FTP_PASSWORD"]
+          zone = os.environ["ZONE"]
+          www = os.environ["WWW_URL"]
+
+          html = f"""<!DOCTYPE html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <title>Redirecting…</title>
+              <meta http-equiv="refresh" content="0; url={www}" />
+              <link rel="canonical" href="{www}" />
+              <script>location.replace("{www}");</script>
+            </head>
+            <body>
+              <p>Redirecting to <a href="{www}">www.{zone}</a>…</p>
+            </body>
+          </html>
+          """
+
+          htaccess = f"""RewriteEngine On
+          RewriteCond %{{HTTP_HOST}} ^{zone.replace('.', '\\.')}$ [NC]
+          RewriteRule ^ {www.rstrip('/')}%{{REQUEST_URI}} [R=301,L]
+          """
+
+          with open("/tmp/redirect_upload.html", "w", encoding="utf-8") as f:
+              f.write(html)
+          with open("/tmp/redirect_upload.htaccess", "w", encoding="utf-8") as f:
+              f.write(htaccess)
+
+          ftp = FTP_TLS()
+          ftp.connect(server, 21, timeout=30)
+          ftp.auth()
+          ftp.prot_p()
+          ftp.login(user, password)
+          uploaded = False
+          for path in ("public_html", "public_html/meridianconsulting.co.za", "meridianconsulting.co.za/public_html"):
+              try:
+                  ftp.cwd("/")
+                  for part in path.split("/"):
+                      ftp.cwd(part)
+                  with open("/tmp/redirect_upload.html", "rb") as fh:
+                      ftp.storbinary("STOR index.html", fh)
+                  with open("/tmp/redirect_upload.htaccess", "rb") as fh:
+                      ftp.storbinary("STOR .htaccess", fh)
+                  print(f"Uploaded redirect files to /{path}")
+                  uploaded = True
+                  break
+              except Exception as e:
+                  print(f"FTP path /{path} failed: {e}")
+          ftp.quit()
+          if not uploaded:
+              print("FTP upload skipped or failed; cPanel redirect may still work.")
+          PY
+
+          HOST_IP="$(dig +short A "${FTP_SERVER}" | head -1 | tr -d '\n')"
+          if [ -n "$HOST_IP" ]; then
+            echo "=== Ensure apex A record points at hosting (${HOST_IP}) ==="
+            zoneedit() {
+              local func="$1"
+              shift
+              local body
+              body="$(mktemp)"
+              curl -sS -m 30 -k "${CPANEL_AUTH[@]}" \
+                -H "Accept: application/json" \
+                -G "${CPANEL}/json-api/cpanel" \
+                --data-urlencode "cpanel_jsonapi_apiversion=2" \
+                --data-urlencode "cpanel_jsonapi_module=ZoneEdit" \
+                --data-urlencode "cpanel_jsonapi_func=${func}" \
+                "$@" \
+                -o "$body"
+              cp "$body" /tmp/zoneedit_last.json
+            }
+
+            zoneedit fetchzone_records --data-urlencode "domain=${ZONE}"
+            LINE="$(jq -r --arg zone "${ZONE}." '
+              [.cpanelresult.data[]?
+                | select(.type == "A")
+                | select(.name == $zone or .name == ($zone | rtrimstr(".")) or .name == "@")
+                | (.line // .Line)
+              ][0] // empty
+            ' /tmp/zoneedit_last.json)"
+
+            if [ -n "$LINE" ] && [ "$LINE" != "null" ]; then
+              CURRENT_IP="$(jq -r --arg line "$LINE" '
+                [.cpanelresult.data[]? | select((.line // .Line | tostring) == $line) | .record // .address][0] // empty
+              ' /tmp/zoneedit_last.json)"
+              echo "Current apex A record line ${LINE}: ${CURRENT_IP:-unknown}"
+              if [ "${CURRENT_IP:-}" != "$HOST_IP" ]; then
+                zoneedit edit_zone_record \
+                  --data-urlencode "domain=${ZONE}" \
+                  --data-urlencode "line=${LINE}" \
+                  --data-urlencode "type=A" \
+                  --data-urlencode "address=${HOST_IP}"
+                jq '.cpanelresult.event.result // .cpanelresult.data.result // empty' /tmp/zoneedit_last.json
+              fi
+            fi
+          fi
+
+          echo "=== Verify apex redirect ==="
+          for i in 1 2 3 4 5 6 8 10 12; do
+            APEX_IP="$(dig +short A "${ZONE}" | head -1 | tr -d '\n')"
+            APEX_CODE="$(curl -sS -m 15 -o /dev/null -w "%{http_code}" -L "https://${ZONE}/" || echo "000")"
+            APEX_URL="$(curl -sS -m 15 -o /dev/null -w "%{url_effective}" -L "https://${ZONE}/" || true)"
+            echo "Attempt ${i}: A=${APEX_IP:-<empty>} HTTP=${APEX_CODE} URL=${APEX_URL}"
+            if echo "$APEX_URL" | grep -qi "www.${ZONE}"; then
+              echo "Apex redirect is working."
+              exit 0
+            fi
+            sleep 15
+          done
+
+          echo "Apex redirect not verified yet. If this persists, move nameservers to Cloudflare and re-run."
+          exit 0
