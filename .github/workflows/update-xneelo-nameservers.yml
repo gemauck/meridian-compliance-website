@@ -9,9 +9,8 @@ jobs:
     steps:
       - name: Install Playwright
         run: |
-          npm init -y >/dev/null 2>&1
-          npm install playwright@1.49.1 >/dev/null 2>&1
-          npx playwright install chromium --with-deps
+          pip install playwright==1.49.1
+          playwright install chromium --with-deps
 
       - name: Change nameservers in xneelo Control Panel
         env:
