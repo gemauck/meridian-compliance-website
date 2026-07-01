@@ -1,0 +1,216 @@
+name: Force domains.co.za via reset
+
+on:
+  workflow_dispatch:
+
+jobs:
+  force:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.49.1
+          playwright install chromium --with-deps
+
+      - name: Reset password, read mail, change nameservers
+        env:
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          ZONE: meridianconsulting.co.za
+          NS1: alaric.ns.cloudflare.com
+          NS2: rayne.ns.cloudflare.com
+        run: |
+          python3 - <<'PY'
+          import imaplib, email, os, re, ssl, sys, time
+          from email.header import decode_header
+          from playwright.sync_api import sync_playwright
+          from urllib.parse import urljoin
+
+          zone = os.environ["ZONE"]
+          ns1 = os.environ["NS1"]
+          ns2 = os.environ["NS2"]
+          new_password = os.environ["EMAIL_PASSWORD"]
+          emails = ["gemauck@gmail.com", "info@meridianconsulting.co.za"]
+
+          def decode_mime(value):
+              if not value:
+                  return ""
+              parts = decode_header(value)
+              out = []
+              for text, enc in parts:
+                  if isinstance(text, bytes):
+                      out.append(text.decode(enc or "utf-8", errors="replace"))
+                  else:
+                      out.append(text)
+              return "".join(out)
+
+          def fetch_reset_link():
+              user = "info@meridianconsulting.co.za"
+              password = os.environ["EMAIL_PASSWORD"]
+              hosts = ["mail.meridianconsulting.co.za", "cp75.domains.co.za"]
+              for host in hosts:
+                  try:
+                      with imaplib.IMAP4_SSL(host, ssl_context=ssl.create_default_context()) as m:
+                          m.login(user, password)
+                          m.select("INBOX")
+                          typ, data = m.search(None, "ALL")
+                          ids = data[0].split()[-20:]
+                          for mid in reversed(ids):
+                              typ, msg_data = m.fetch(mid, "(RFC822)")
+                              msg = email.message_from_bytes(msg_data[0][1])
+                              subject = decode_mime(msg.get("Subject", ""))
+                              body = ""
+                              if msg.is_multipart():
+                                  for part in msg.walk():
+                                      if part.get_content_type() == "text/plain":
+                                          body += part.get_payload(decode=True).decode(errors="replace")
+                              else:
+                                  body = msg.get_payload(decode=True).decode(errors="replace")
+                              blob = subject + "\n" + body
+                              if "domains.co.za" in blob.lower() or "password" in blob.lower():
+                                  links = re.findall(r"https?://[^\s\"'<>]+", blob)
+                                  for link in links:
+                                      if "domains.co.za" in link and any(x in link.lower() for x in ["reset", "password", "token", "verify"]):
+                                          print("Found reset link in mail:", link[:120])
+                                          return link
+                  except Exception as e:
+                      print(f"IMAP {host} failed: {e}")
+              return None
+
+          def change_ns(page):
+              for url in [
+                  "https://www.domains.co.za/account/domains",
+                  "https://www.domains.co.za/clientarea.php?action=domains",
+              ]:
+                  page.goto(url, wait_until="domcontentloaded", timeout=120000)
+                  time.sleep(5)
+                  if page.get_by_text(re.compile(re.escape(zone), re.I)).count():
+                      break
+              dom = page.get_by_text(re.compile(re.escape(zone), re.I))
+              if dom.count() == 0:
+                  print(page.inner_text("body")[:2500])
+                  return False
+              dom.first.click()
+              time.sleep(4)
+              for pattern in [r"nameserver", r"name server", r"change nameservers"]:
+                  link = page.get_by_text(re.compile(pattern, re.I))
+                  if link.count():
+                      link.first.click()
+                      time.sleep(3)
+                      break
+              custom = page.get_by_text(re.compile(r"custom|different", re.I))
+              if custom.count():
+                  custom.first.click()
+                  time.sleep(1)
+              fields = [f for f in page.locator("input[type='text'], input:not([type='hidden'])").all() if f.is_visible()]
+              if len(fields) < 2:
+                  print(page.inner_text("body")[:2500])
+                  return False
+              fields[0].fill(ns1)
+              fields[1].fill(ns2)
+              for label in [r"save changes", r"save", r"update", r"submit"]:
+                  btn = page.get_by_role("button", name=re.compile(label, re.I))
+                  if btn.count():
+                      btn.first.click()
+                      time.sleep(4)
+                      break
+              print(page.inner_text("body")[:2000])
+              return True
+
+          def logged_in(page):
+              body = page.inner_text("body").lower()
+              return zone in page.inner_text("body") or ("log out" in body and "sign in" not in body)
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_default_timeout(90000)
+
+              # Try direct logins first
+              for user, password in [
+                  ("gemauck@gmail.com", os.environ["FTP_PASSWORD"]),
+                  ("gemauck@gmail.com", new_password),
+                  ("info@meridianconsulting.co.za", new_password),
+                  ("info@meridianconsulting.co.za", os.environ["FTP_PASSWORD"]),
+              ]:
+                  print("Login:", user)
+                  page.goto("https://www.domains.co.za/login", timeout=120000)
+                  time.sleep(4)
+                  if page.locator("#inputUser").count() == 0:
+                      continue
+                  page.locator("#inputUser").fill(user)
+                  page.locator("#inputPass").fill(password)
+                  page.get_by_role("button", name=re.compile(r"sign in", re.I)).first.click()
+                  time.sleep(6)
+                  if logged_in(page):
+                      if change_ns(page):
+                          browser.close()
+                          sys.exit(0)
+                  time.sleep(25)
+
+              # Trigger forgot password
+              for user in emails:
+                  print("Requesting password reset for", user)
+                  page.goto("https://www.domains.co.za/login", timeout=120000)
+                  time.sleep(4)
+                  forgot = page.get_by_text(re.compile(r"forgot password", re.I))
+                  if forgot.count():
+                      forgot.first.click()
+                      time.sleep(3)
+                  email_input = page.locator("input[type='email'], #inputUser, input[placeholder*='mail' i]").first
+                  if email_input.count():
+                      email_input.fill(user)
+                  submit = page.get_by_role("button", name=re.compile(r"reset|submit|send", re.I))
+                  if submit.count():
+                      submit.first.click()
+                  time.sleep(8)
+                  print(page.inner_text("body")[:1000])
+
+              print("Polling info@ mailbox for reset link...")
+              link = None
+              for i in range(12):
+                  link = fetch_reset_link()
+                  if link:
+                      break
+                  time.sleep(20)
+
+              if not link:
+                  print("No reset link found in info@ mailbox")
+                  browser.close()
+                  sys.exit(1)
+
+              page.goto(link, timeout=120000)
+              time.sleep(5)
+              pass_fields = page.locator("input[type='password']").all()
+              visible = [f for f in pass_fields if f.is_visible()]
+              if len(visible) >= 1:
+                  visible[0].fill(new_password)
+              if len(visible) >= 2:
+                  visible[1].fill(new_password)
+              page.get_by_role("button", name=re.compile(r"reset|save|submit|change", re.I)).first.click()
+              time.sleep(6)
+
+              page.goto("https://www.domains.co.za/login", timeout=120000)
+              time.sleep(3)
+              page.locator("#inputUser").fill("info@meridianconsulting.co.za")
+              page.locator("#inputPass").fill(new_password)
+              page.get_by_role("button", name=re.compile(r"sign in", re.I)).first.click()
+              time.sleep(8)
+              if not logged_in(page):
+                  page.locator("#inputUser").fill("gemauck@gmail.com")
+                  page.locator("#inputPass").fill(new_password)
+                  page.get_by_role("button", name=re.compile(r"sign in", re.I)).first.click()
+                  time.sleep(8)
+
+              if not logged_in(page):
+                  print("Still not logged in after reset")
+                  print(page.inner_text("body")[:1500])
+                  browser.close()
+                  sys.exit(1)
+
+              ok = change_ns(page)
+              browser.close()
+              sys.exit(0 if ok else 1)
+          PY
+
+          dig +short NS "${ZONE}" || true
