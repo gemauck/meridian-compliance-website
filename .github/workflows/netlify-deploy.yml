@@ -1,20 +1,16 @@
 name: Deploy to Netlify
 
-# Netlify deploys are paused while the free-plan credit limit is exceeded.
-# Run manually after credits are restored or the plan is upgraded.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Netlify
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        run: npx --yes netlify-cli@latest deploy --prod --dir . --site 0706de37-1a8b-44f1-9949-52c6f0dae485
+      - name: Trigger Netlify build
+        run: curl -fsS -X POST -d '{}' "${{ secrets.NETLIFY_BUILD_HOOK }}"
 
       - name: Wait for deploy to go live
         run: |
