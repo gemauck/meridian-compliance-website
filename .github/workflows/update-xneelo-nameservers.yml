@@ -1,0 +1,121 @@
+name: Update xneelo nameservers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  xneelo-ns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.49.1 >/dev/null 2>&1
+          npx playwright install chromium --with-deps
+
+      - name: Change nameservers in xneelo Control Panel
+        env:
+          XNEELO_EMAIL: ${{ secrets.FTP_USERNAME }}
+          XNEELO_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          ZONE: meridianconsulting.co.za
+          NS1: alaric.ns.cloudflare.com
+          NS2: rayne.ns.cloudflare.com
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, time
+          from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
+          email = os.environ.get("XNEELO_EMAIL", "")
+          password = os.environ.get("XNEELO_PASSWORD", "")
+          zone = os.environ["ZONE"]
+          ns1 = os.environ["NS1"]
+          ns2 = os.environ["NS2"]
+
+          if not email or not password:
+              print("Missing XNEELO_EMAIL or XNEELO_PASSWORD secrets")
+              sys.exit(1)
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_default_timeout(60000)
+
+              print("Opening xneelo Control Panel login...")
+              page.goto("https://create.xneelo.com/", wait_until="domcontentloaded")
+              time.sleep(5)
+
+              if "identity.xneelo.com" in page.url or page.locator("input[type='email'], input[name='username']").count():
+                  print("Filling login form...")
+                  email_input = page.locator("input[type='email'], input[name='username']").first
+                  pass_input = page.locator("input[type='password']").first
+                  email_input.fill(email)
+                  pass_input.fill(password)
+                  page.get_by_role("button", name=re.compile(r"log in", re.I)).click()
+                  page.wait_for_load_state("networkidle")
+                  time.sleep(5)
+
+              if "identity.xneelo.com" in page.url:
+                  print("Login may have failed or 2FA required:", page.url)
+                  print(page.inner_text("body")[:1000])
+                  browser.close()
+                  sys.exit(1)
+
+              print("Navigating to Domains...")
+              page.goto("https://create.xneelo.com/products/domains", wait_until="domcontentloaded")
+              time.sleep(5)
+
+              domain_link = page.get_by_text(zone, exact=True)
+              if domain_link.count() == 0:
+                  domain_link = page.get_by_text(re.compile(re.escape(zone), re.I))
+              domain_link.first.click()
+              time.sleep(4)
+
+              change_ns = page.get_by_role("link", name=re.compile(r"change name servers", re.I))
+              if change_ns.count() == 0:
+                  change_ns = page.get_by_text(re.compile(r"change name servers", re.I))
+              change_ns.first.click()
+              time.sleep(3)
+
+              custom = page.get_by_text(re.compile(r"different provider", re.I))
+              if custom.count():
+                  custom.first.click()
+                  time.sleep(1)
+
+              inputs = page.locator("input").all()
+              ns_fields = []
+              for inp in inputs:
+                  ph = (inp.get_attribute("placeholder") or "").lower()
+                  name = (inp.get_attribute("name") or "").lower()
+                  if "name" in ph or "server" in ph or "ns" in name:
+                      ns_fields.append(inp)
+              if len(ns_fields) < 2:
+                  ns_fields = page.locator("input[type='text']").all()
+
+              if len(ns_fields) >= 2:
+                  ns_fields[0].fill(ns1)
+                  ns_fields[1].fill(ns2)
+              else:
+                  print("Could not find nameserver fields")
+                  print(page.inner_text("body")[:2000])
+                  browser.close()
+                  sys.exit(1)
+
+              for label in [r"continue", r"save", r"update"]:
+                  btn = page.get_by_role("button", name=re.compile(label, re.I))
+                  if btn.count():
+                      btn.first.click()
+                      time.sleep(3)
+                      break
+
+              save = page.get_by_role("button", name=re.compile(r"save changes", re.I))
+              if save.count():
+                  save.first.click()
+                  time.sleep(3)
+
+              print("Done. Final URL:", page.url)
+              print(page.inner_text("body")[:1500])
+              browser.close()
+          PY
+
+          echo "=== Verify NS propagation (may take time) ==="
+          dig +short NS "${ZONE}" || true
